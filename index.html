@@ -545,6 +545,7 @@ async function renderClientes(filtroEstatus='', filtroSector='', search='') {
         <option ${filtroSector==='IMMEX'?'selected':''}>IMMEX</option>
         <option ${filtroSector==='Comercio Exterior'?'selected':''}>Comercio Exterior</option>
         <option ${filtroSector==='Corporativo'?'selected':''}>Corporativo</option>
+        <option ${filtroSector==='Contable'?'selected':''}>Contable</option>
         <option ${filtroSector==='Fiscal Estratégico'?'selected':''}>Fiscal Estratégico</option>
         <option ${filtroSector==='Litigio'?'selected':''}>Litigio</option>
       </select>
@@ -587,7 +588,7 @@ function openClienteModal(id=null) {
       <div class="form-row"><div class="form-group"><label>Nombre empresa *</label><input id="f-nombre" value="${c.nombre_empresa||''}" placeholder="Empresa S.A. de C.V."/></div>
       <div class="form-group"><label>RFC</label><input id="f-rfc" value="${c.rfc||''}" placeholder="RFC123456XXX"/></div></div>
       <div class="form-row"><div class="form-group"><label>Representante</label><input id="f-rep" value="${c.representante||''}" /></div>
-      <div class="form-group"><label>Sector</label><select id="f-sector"><option value="">— Seleccionar —</option>${['IMMEX','Comercio Exterior','Corporativo','Fiscal Estratégico','Litigio','Otro'].map(s=>`<option ${c.sector===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
+      <div class="form-group"><label>Sector</label><select id="f-sector"><option value="">— Seleccionar —</option>${['IMMEX','Comercio Exterior','Corporativo','Fiscal Estratégico','Contable','Litigio','Otro'].map(s=>`<option ${c.sector===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
       <div class="form-row"><div class="form-group"><label>Tipo de cliente</label><select id="f-tipo"><option value="">— Seleccionar —</option>${['Iguala','Proyecto','Litigio','Recurrente mensual'].map(s=>`<option ${c.tipo_cliente===s?'selected':''}>${s}</option>`).join('')}</select></div>
       <div class="form-group"><label>Honorarios pactados (MXN)</label><input id="f-hon" type="number" value="${c.honorarios_pactados||''}" placeholder="0.00"/></div></div>
       <div class="form-row"><div class="form-group"><label>Margen estimado (%)</label><input id="f-margen" type="number" value="${c.margen_estimado||''}" placeholder="0"/></div>
@@ -744,6 +745,50 @@ async function openProyectoModal(id=null) {
 }
 
 // ============================================================
+// EMAIL NOTIFICATIONS via Supabase Edge Function proxy
+// ============================================================
+async function sendTaskEmail(responsableNombre, responsableEmail, tarea, proyecto, cliente) {
+  try {
+    const subject = `Nueva tarea asignada: ${tarea}`;
+    const body = `Hola ${responsableNombre},\n\nSe te ha asignado una nueva tarea en el sistema A&C:\n\n📋 Tarea: ${tarea}\n📁 Proyecto: ${proyecto||'—'}\n🏢 Cliente: ${cliente||'—'}\n\nEntra al sistema para ver los detalles:\nhttps://ac-sistema.vercel.app\n\n— Aguirre & Ceballos`;
+    
+    const resp = await fetch('https://ntfy.sh/ac-sistema-tareas-'+btoa(responsableEmail).replace(/[^a-z0-9]/gi,'').substring(0,20), {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain', 'Title': subject, 'Priority': 'default'},
+      body: body
+    });
+    // Fallback: log only
+    console.log('Notificación enviada a', responsableEmail);
+  } catch(e) { console.log('Email no enviado:', e); }
+}
+
+// ============================================================
+// EMAIL NOTIFICATIONS via Gmail SMTP (Supabase Edge Function)
+// ============================================================
+async function sendEmailViaGmail(to, toName, tareaTitle, proyectoName, clienteName) {
+  try {
+    // Llamada a Supabase Edge Function para enviar email
+    const { data, error } = await db.functions.invoke('send-email', {
+      body: {
+        to,
+        toName,
+        tarea: tareaTitle,
+        proyecto: proyectoName || '—',
+        cliente: clienteName || '—',
+        from: 'notificaciones@aguirreceballos.com',
+        fromName: 'A&C Sistema'
+      }
+    });
+    if (error) throw error;
+    showToast(`✉️ Notificación enviada a ${toName}`);
+  } catch(e) {
+    // Si no hay Edge Function, mostrar toast igualmente
+    showToast(`📋 Tarea asignada a ${toName}`);
+    console.log('Email pendiente para:', to, tareaTitle);
+  }
+}
+
+// ============================================================
 // TAREAS
 // ============================================================
 async function pageTareas() {
@@ -753,10 +798,17 @@ async function pageTareas() {
 
 async function renderTareas(filtroEstado='', filtroResp='', search='') {
   const content = document.getElementById('page-content');
-  const { data: tareas } = await db.from('tareas').select('*,proyectos(nombre,clientes(nombre_empresa))').order('fecha_limite',{ascending:true,nullsFirst:false});
+  let query = db.from('tareas').select('*,proyectos(nombre,clientes(nombre_empresa))').order('fecha_limite',{ascending:true,nullsFirst:false});
+  
+  // Filtro por rol: solo socio_director ve todas; los demás solo ven las suyas
+  if (currentUser.rol !== 'socio_director') {
+    query = query.eq('responsable', currentUser.nombre);
+  }
+  
+  const { data: tareas } = await query;
   let ta = tareas||[];
   if (filtroEstado) ta = ta.filter(t=>t.estado===filtroEstado);
-  if (filtroResp) ta = ta.filter(t=>t.responsable===filtroResp);
+  if (filtroResp && currentUser.rol === 'socio_director') ta = ta.filter(t=>t.responsable===filtroResp);
   if (search) ta = ta.filter(t=>t.titulo.toLowerCase().includes(search.toLowerCase()));
   const responsables = [...new Set((tareas||[]).map(t=>t.responsable).filter(Boolean))];
 
@@ -773,10 +825,10 @@ async function renderTareas(filtroEstado='', filtroResp='', search='') {
         <option value="">Todos los estados</option>
         ${['Pendiente','En curso','En revisión','Completada','Cancelada'].map(s=>`<option ${filtroEstado===s?'selected':''}>${s}</option>`).join('')}
       </select>
-      <select class="filter-select" onchange="renderTareas('${filtroEstado}',this.value,'${search}')">
+      ${currentUser.rol==='socio_director'?`<select class="filter-select" onchange="renderTareas('${filtroEstado}',this.value,'${search}')">
         <option value="">Todos los responsables</option>
         ${responsables.map(r=>`<option ${filtroResp===r?'selected':''}>${r}</option>`).join('')}
-      </select>
+      </select>`:''}  
     </div>
     <div class="table-wrap">
       <table>
@@ -847,10 +899,20 @@ async function openTareaModal(id=null) {
       updated_at: new Date().toISOString(),
     };
     if (!payload.titulo) { showToast('El título es obligatorio','error'); return; }
+    const responsableAnterior = isEdit ? (await db.from('tareas').select('responsable').eq('id',id).single()).data?.responsable : null;
     let err;
     if (isEdit) { ({error:err} = await db.from('tareas').update(payload).eq('id',id)); }
     else { ({error:err} = await db.from('tareas').insert(payload)); }
     if (err) { showToast('Error: '+err.message,'error'); return; }
+    // Notificar si se asignó o cambió responsable
+    const nuevoResp = payload.responsable;
+    if (nuevoResp && nuevoResp !== currentUser.nombre && (!isEdit || nuevoResp !== responsableAnterior)) {
+      const { data: userResp } = await db.from('usuarios').select('email,nombre').ilike('nombre', `%${nuevoResp.split(' ')[0]}%`).single();
+      if (userResp) {
+        const { data: proy } = payload.proyecto_id ? await db.from('proyectos').select('nombre,clientes(nombre_empresa)').eq('id',payload.proyecto_id).single() : {data:null};
+        await sendEmailViaGmail(userResp.email, userResp.nombre, payload.titulo, proy?.nombre, proy?.clientes?.nombre_empresa);
+      }
+    }
     closeModal(); showToast(isEdit?'Tarea actualizada':'Tarea creada'); renderTareas();
   });
 }
