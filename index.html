@@ -768,7 +768,7 @@ async function sendTaskEmail(responsableNombre, responsableEmail, tarea, proyect
 async function sendEmailViaGmail(to, toName, tareaTitle, proyectoName, clienteName) {
   try {
     // Llamada a Supabase Edge Function para enviar email
-    const { data, error } = await db.functions.invoke('send-email', {
+    const { data, error } = await db.functions.invoke('swift-worker', {
       body: {
         to,
         toName,
