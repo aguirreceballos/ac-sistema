@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A&C · Sistema Operativo</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --ink: #0e0e1a; --ink2: #1a1a2e; --gold: #c9a84c; --gold2: #e8c96d; --gold-light: #fdf6e3;
+  --cream: #f7f3ec; --cream2: #ede8dd; --white: #ffffff;
+  --slate: #4a5568; --slate2: #718096; --slate3: #a0aec0;
+  --red: #c53030; --red2: #fff5f5; --red3: #fed7d7;
+  --green: #276749; --green2: #f0fff4; --green3: #c6f6d5;
+  --blue: #2b6cb0; --blue2: #ebf8ff; --blue3: #bee3f8;
+  --amber: #b7791f; --amber2: #fffbeb; --amber3: #fbd38d;
+  --purple: #553c9a; --purple2: #faf5ff; --purple3: #d6bcfa;
+  --border: #e2d9c8; --border2: #d1c7b5;
+  --shadow: 0 2px 12px rgba(15,15,15,0.06); --shadow-md: 0 4px 20px rgba(15,15,15,0.10); --shadow-lg: 0 12px 48px rgba(15,15,15,0.15);
+  --r: 10px; --r-sm: 6px; --r-lg: 16px;
+  --sidebar-w: 220px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);min-height:100vh;font-size:14px}
+button{cursor:pointer;font-family:'DM Sans',sans-serif}
+input,select,textarea{font-family:'DM Sans',sans-serif}
+
+/* ===== LOGIN ===== */
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:var(--ink2);
+  background-image:radial-gradient(ellipse at 15% 50%,rgba(201,168,76,.18) 0%,transparent 55%),
+  radial-gradient(ellipse at 85% 20%,rgba(201,168,76,.10) 0%,transparent 50%)}
+.login-card{background:var(--white);border-radius:var(--r-lg);padding:48px 44px;width:400px;
+  box-shadow:var(--shadow-lg);border-top:3px solid var(--gold);animation:fadeUp .45s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+.login-brand{text-align:center;margin-bottom:36px}
+.login-brand h1{font-family:'Playfair Display',serif;font-size:26px;color:var(--ink2);font-weight:700;letter-spacing:-.3px}
+.login-brand span{color:var(--gold)}
+.login-brand p{font-size:10px;color:var(--slate3);letter-spacing:3px;text-transform:uppercase;margin-top:5px}
+.field{margin-bottom:18px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--slate);letter-spacing:.6px;text-transform:uppercase;margin-bottom:7px}
+.field input,.field select{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:var(--r-sm);
+  font-size:14px;color:var(--ink);background:var(--cream);transition:border-color .2s,background .2s;appearance:none}
+.field input:focus,.field select:focus{outline:none;border-color:var(--gold);background:var(--white)}
+.btn-primary{width:100%;padding:13px;background:var(--ink2);color:var(--gold);border:none;border-radius:var(--r-sm);
+  font-size:14px;font-weight:600;letter-spacing:.4px;transition:all .2s;margin-top:6px}
+.btn-primary:hover{background:var(--gold);color:var(--ink2)}
+.login-error{background:var(--red2);border:1px solid var(--red3);color:var(--red);border-radius:var(--r-sm);
+  padding:10px 14px;font-size:13px;margin-top:14px;display:none}
+
+/* ===== APP LAYOUT ===== */
+#app{display:none;min-height:100vh}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:var(--sidebar-w);background:var(--ink2);
+  display:flex;flex-direction:column;z-index:100;overflow-y:auto}
+.sidebar-brand{padding:24px 20px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+.sidebar-brand h2{font-family:'Playfair Display',serif;font-size:18px;color:var(--white);font-weight:700}
+.sidebar-brand h2 span{color:var(--gold)}
+.sidebar-brand p{font-size:10px;color:rgba(255,255,255,.35);letter-spacing:2px;text-transform:uppercase;margin-top:3px}
+.sidebar-user{padding:14px 20px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:10px}
+.user-avatar{width:32px;height:32px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;color:var(--ink2);flex-shrink:0}
+.user-info p{font-size:12px;font-weight:600;color:var(--white)}
+.user-info span{font-size:10px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.5px}
+.sidebar-nav{padding:16px 0;flex:1}
+.nav-section{padding:6px 20px 4px;font-size:9px;font-weight:700;color:rgba(255,255,255,.25);letter-spacing:2px;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;color:rgba(255,255,255,.55);
+  font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;border:none;background:none;width:100%;text-align:left}
+.nav-item:hover{color:var(--white);background:rgba(255,255,255,.05)}
+.nav-item.active{color:var(--gold);background:rgba(201,168,76,.12)}
+.nav-item .icon{font-size:15px;width:18px;text-align:center}
+.sidebar-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,.08)}
+.btn-logout{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.35);font-size:12px;
+  cursor:pointer;background:none;border:none;padding:0;transition:color .2s}
+.btn-logout:hover{color:var(--red)}
+.main{margin-left:var(--sidebar-w);min-height:100vh;display:flex;flex-direction:column}
+.topbar{padding:18px 28px;background:var(--white);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.topbar h1{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:var(--ink2)}
+.topbar-actions{display:flex;gap:10px;align-items:center}
+.content{padding:24px 28px;flex:1}
+
+/* ===== COMPONENTS ===== */
+.btn{padding:9px 18px;border-radius:var(--r-sm);font-size:13px;font-weight:600;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn-gold{background:var(--gold);color:var(--ink2)}.btn-gold:hover{background:var(--gold2)}
+.btn-dark{background:var(--ink2);color:var(--white)}.btn-dark:hover{background:#2d2d45}
+.btn-outline{background:transparent;color:var(--slate);border:1.5px solid var(--border)}.btn-outline:hover{border-color:var(--gold);color:var(--gold)}
+.btn-danger{background:var(--red2);color:var(--red);border:1px solid var(--red3)}.btn-danger:hover{background:var(--red3)}
+.btn-sm{padding:6px 12px;font-size:12px}
+
+.card{background:var(--white);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--shadow)}
+.card-header{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:14px;font-weight:700;color:var(--ink2)}
+.card-body{padding:20px}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+
+.stat-card{background:var(--white);border-radius:var(--r);border:1px solid var(--border);padding:20px;box-shadow:var(--shadow)}
+.stat-label{font-size:11px;font-weight:600;color:var(--slate2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.stat-value{font-size:26px;font-weight:700;color:var(--ink2);font-family:'Playfair Display',serif}
+.stat-sub{font-size:12px;color:var(--slate2);margin-top:4px}
+.stat-icon{font-size:28px;margin-bottom:8px}
+
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.3px}
+.badge-green{background:var(--green3);color:var(--green)}
+.badge-red{background:var(--red3);color:var(--red)}
+.badge-amber{background:var(--amber3);color:var(--amber)}
+.badge-blue{background:var(--blue3);color:var(--blue)}
+.badge-purple{background:var(--purple3);color:var(--purple)}
+.badge-gray{background:var(--cream2);color:var(--slate)}
+
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--slate2);
+   text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--border);background:var(--cream)}
+td{padding:12px 14px;border-bottom:1px solid var(--border);font-size:13px;color:var(--ink);vertical-align:middle}
+tr:hover td{background:var(--gold-light)}
+.table-wrap{overflow-x:auto;border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--shadow)}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(10,10,20,.55);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal{background:var(--white);border-radius:var(--r-lg);width:100%;max-width:580px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);animation:fadeUp .3s ease}
+.modal-header{padding:22px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--ink2)}
+.modal-close{background:none;border:none;font-size:20px;color:var(--slate2);cursor:pointer;line-height:1;padding:4px}
+.modal-close:hover{color:var(--red)}
+.modal-body{padding:24px}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.form-row.full{grid-template-columns:1fr;margin-bottom:16px}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-group label{font-size:11px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.5px}
+.form-group input,.form-group select,.form-group textarea{
+  padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--r-sm);
+  font-size:13px;color:var(--ink);background:var(--cream);transition:border-color .2s;resize:vertical}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--gold);background:var(--white)}
+.form-group textarea{min-height:80px}
+
+/* FILTERS */
+.filters{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;align-items:center}
+.filter-select{padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--r-sm);
+  font-size:13px;color:var(--slate);background:var(--white);appearance:none;cursor:pointer}
+.search-input{padding:8px 14px;border:1.5px solid var(--border);border-radius:var(--r-sm);
+  font-size:13px;color:var(--ink);background:var(--white);min-width:220px}
+.search-input:focus{outline:none;border-color:var(--gold)}
+
+/* TABS */
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px}
+.tab{padding:10px 20px;font-size:13px;font-weight:600;color:var(--slate2);cursor:pointer;
+  border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s;background:none;border-top:none;border-left:none;border-right:none}
+.tab:hover{color:var(--gold)}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:48px 20px;color:var(--slate2)}
+.empty .icon{font-size:40px;margin-bottom:12px;opacity:.4}
+.empty p{font-size:14px}
+
+/* KANBAN */
+.kanban{display:flex;gap:16px;overflow-x:auto;padding-bottom:8px}
+.kanban-col{background:var(--cream2);border-radius:var(--r);padding:14px;min-width:200px;flex:1}
+.kanban-col-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--slate);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.kanban-card{background:var(--white);border-radius:var(--r-sm);padding:12px;margin-bottom:8px;border:1px solid var(--border);box-shadow:var(--shadow);cursor:pointer;transition:box-shadow .2s}
+.kanban-card:hover{box-shadow:var(--shadow-md)}
+.kanban-card h4{font-size:13px;font-weight:600;color:var(--ink2);margin-bottom:4px}
+.kanban-card p{font-size:11px;color:var(--slate2)}
+
+/* AGING */
+.aging-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.aging-card{border-radius:var(--r);padding:16px;text-align:center}
+.aging-card.a0{background:var(--green2);border:1px solid var(--green3)}
+.aging-card.a30{background:var(--amber2);border:1px solid var(--amber3)}
+.aging-card.a60{background:#fff7ed;border:1px solid #fed7aa}
+.aging-card.a90{background:var(--red2);border:1px solid var(--red3)}
+.aging-card .amount{font-size:20px;font-weight:700;font-family:'Playfair Display',serif;margin-bottom:4px}
+.aging-card .label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+
+/* LOADING */
+.loading{text-align:center;padding:40px;color:var(--slate2);font-size:13px}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ALERT */
+.alert{padding:12px 16px;border-radius:var(--r-sm);font-size:13px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.alert-success{background:var(--green2);color:var(--green);border:1px solid var(--green3)}
+.alert-error{background:var(--red2);color:var(--red);border:1px solid var(--red3)}
+
+/* HORA TRACKER */
+.hora-badge{background:var(--blue2);color:var(--blue);border:1px solid var(--blue3);border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+.hora-badge:hover{background:var(--blue3)}
+
+/* PROGRESS BAR */
+.progress{background:var(--cream2);border-radius:20px;height:6px;overflow:hidden}
+.progress-bar{height:100%;border-radius:20px;background:var(--gold);transition:width .4s ease}
+.progress-bar.danger{background:var(--red)}
+.progress-bar.success{background:var(--green)}
+
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%);transition:.3s}
+  .main{margin-left:0}
+  .grid-4{grid-template-columns:1fr 1fr}
+  .grid-3{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-brand">
+      <h1>Aguirre <span>&</span> Ceballos</h1>
+      <p>Sistema Operativo Interno</p>
+    </div>
+    <div class="field">
+      <label>Correo electrónico</label>
+      <input type="email" id="login-email" placeholder="tu@aguirreceballos.com" autocomplete="off"/>
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="off"/>
+    </div>
+    <button class="btn-primary" onclick="doLogin()">Entrar al sistema →</button>
+    <div class="login-error" id="login-error">Credenciales incorrectas. Verifica tu correo y contraseña.</div>
+    <p style="text-align:center;margin-top:16px;font-size:11px;color:var(--slate3)">
+      Acceso restringido · Aguirre & Ceballos © 2025
+    </p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="sidebar">
+    <div class="sidebar-brand">
+      <h2>A<span>&</span>C</h2>
+      <p>Sistema Operativo</p>
+    </div>
+    <div class="sidebar-user">
+      <div class="user-avatar" id="user-avatar">HA</div>
+      <div class="user-info">
+        <p id="user-name">Héctor Aguirre</p>
+        <span id="user-role">Socio Director</span>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <button class="btn-logout" onclick="doLogout()">⬅ Cerrar sesión</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <h1 id="page-title">Dashboard</h1>
+      <div class="topbar-actions" id="topbar-actions"></div>
+    </div>
+    <div class="content" id="page-content">
+      <div class="loading"><div class="spinner"></div>Cargando...</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GLOBAL -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Título</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-gold" id="modal-save" onclick="saveModal()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// SUPABASE CONFIG
+// ============================================================
+const SUPA_URL = 'https://ytclvwlrczhnlhyxqhhs.supabase.co';
+const SUPA_KEY = 'sb_publishable_jT2nzx9qkUw8eZsPkX1v1Q_FkVGCw2Y';
+const { createClient } = supabase;
+const db = createClient(SUPA_URL, SUPA_KEY);
+
+// ============================================================
+// STATE
+// ============================================================
+let currentUser = null;
+let currentPage = 'dashboard';
+let modalSaveCallback = null;
+
+// ============================================================
+// AUTH
+// ============================================================
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  if (!email || !pass) { errEl.style.display='block'; errEl.textContent='Completa todos los campos.'; return; }
+  const { data, error } = await db.from('usuarios').select('*').eq('email', email).eq('password_hash', pass).eq('activo', true).single();
+  if (error || !data) { errEl.style.display='block'; return; }
+  currentUser = data;
+  localStorage.setItem('ac_user', JSON.stringify(data));
+  initApp();
+}
+
+function doLogout() {
+  currentUser = null;
+  localStorage.removeItem('ac_user');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+function checkSession() {
+  const saved = localStorage.getItem('ac_user');
+  if (saved) { currentUser = JSON.parse(saved); initApp(); }
+}
+
+// ============================================================
+// APP INIT
+// ============================================================
+const NAV_ITEMS = [
+  { id:'dashboard', label:'Dashboard', icon:'📊', roles:['socio_director','admin'] },
+  { id:'clientes', label:'Clientes', icon:'🏢', roles:['socio_director','gerente_legal','gerente_contable','admin'] },
+  { id:'proyectos', label:'Proyectos', icon:'📁', roles:['socio_director','gerente_legal','gerente_contable','admin','operativo'] },
+  { id:'tareas', label:'Tareas', icon:'✅', roles:['socio_director','gerente_legal','gerente_contable','admin','operativo'] },
+  { id:'finanzas', label:'Finanzas', icon:'💰', roles:['socio_director','admin'] },
+  { id:'pipeline', label:'Pipeline', icon:'🎯', roles:['socio_director'] },
+  { id:'marketing', label:'Marketing', icon:'📣', roles:['socio_director'] },
+  { id:'talento', label:'Talento', icon:'👥', roles:['socio_director','admin'] },
+];
+
+function initApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  const initials = currentUser.nombre.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase();
+  document.getElementById('user-avatar').textContent = initials;
+  document.getElementById('user-name').textContent = currentUser.nombre;
+  const roleLabels = {socio_director:'Socio Director',gerente_legal:'Gerente Legal',gerente_contable:'Gerente Contable',admin:'Administración',operativo:'Operativo'};
+  document.getElementById('user-role').textContent = roleLabels[currentUser.rol] || currentUser.rol;
+  buildNav();
+  navigate('dashboard');
+}
+
+function buildNav() {
+  const nav = document.getElementById('sidebar-nav');
+  nav.innerHTML = '<div class="nav-section">Módulos</div>';
+  NAV_ITEMS.forEach(item => {
+    if (!item.roles.includes(currentUser.rol)) return;
+    const btn = document.createElement('button');
+    btn.className = 'nav-item';
+    btn.id = 'nav-' + item.id;
+    btn.innerHTML = `<span class="icon">${item.icon}</span>${item.label}`;
+    btn.onclick = () => navigate(item.id);
+    nav.appendChild(btn);
+  });
+}
+
+function navigate(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('nav-' + page);
+  if (btn) btn.classList.add('active');
+  const titles = {dashboard:'Dashboard Ejecutivo',clientes:'Clientes',proyectos:'Proyectos',tareas:'Tareas Operativas',finanzas:'Finanzas',pipeline:'Pipeline de Ventas',marketing:'Marketing & Contenido',talento:'Talento'};
+  document.getElementById('page-title').textContent = titles[page] || page;
+  document.getElementById('topbar-actions').innerHTML = '';
+  const content = document.getElementById('page-content');
+  content.innerHTML = '<div class="loading"><div class="spinner"></div>Cargando...</div>';
+  const pages = {dashboard:pageDashboard,clientes:pageClientes,proyectos:pageProyectos,tareas:pageTareas,finanzas:pageFinanzas,pipeline:pagePipeline,marketing:pageMarketing,talento:pageTalento};
+  if (pages[page]) pages[page]();
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function fmt(n) { return n ? new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',minimumFractionDigits:0}).format(n) : '$0'; }
+function fmtDate(d) { if (!d) return '—'; const dt = new Date(d+'T12:00:00'); return dt.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}); }
+function today() { return new Date().toISOString().split('T')[0]; }
+function daysUntil(d) { if (!d) return null; return Math.ceil((new Date(d+'T12:00:00') - new Date()) / 86400000); }
+
+function badgeEstatus(e) {
+  const map = {Activo:'green',Pausado:'amber',Cerrado:'gray','En curso':'blue','En revisión':'amber',Terminado:'green',Facturado:'purple',Cobrado:'green',Pendiente:'amber','Completada':'green',Cancelada:'gray',Emitida:'blue',Vencida:'red',Pagada:'green',Lead:'gray','Reunión':'blue',Propuesta:'amber',Negociación:'purple','Cerrado Ganado':'green','Cerrado Perdido':'red'};
+  const c = map[e] || 'gray';
+  return `<span class="badge badge-${c}">${e}</span>`;
+}
+
+function badgeRiesgo(r) {
+  const map = {Bajo:'green',Medio:'amber',Alto:'red',Crítica:'red',Alta:'red',Media:'amber',Baja:'green'};
+  return `<span class="badge badge-${map[r]||'gray'}">${r}</span>`;
+}
+
+function showToast(msg, type='success') {
+  const t = document.createElement('div');
+  t.className = `alert alert-${type}`;
+  t.style.cssText='position:fixed;bottom:24px;right:24px;z-index:9999;min-width:280px;box-shadow:var(--shadow-md);animation:fadeUp .3s ease';
+  t.innerHTML = `${type==='success'?'✅':'❌'} ${msg}`;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 3500);
+}
+
+// ============================================================
+// MODAL
+// ============================================================
+function openModal(title, body, saveLabel, callback, hideSave=false) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-save').textContent = saveLabel || 'Guardar';
+  document.getElementById('modal-save').style.display = hideSave ? 'none' : 'inline-flex';
+  modalSaveCallback = callback;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+function closeModal() { document.getElementById('modal-overlay').classList.remove('show'); modalSaveCallback = null; }
+function saveModal() { if (modalSaveCallback) modalSaveCallback(); }
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+async function pageDashboard() {
+  const content = document.getElementById('page-content');
+  const [clientes, proyectos, tareas, cobrar, pipeline] = await Promise.all([
+    db.from('clientes').select('*').eq('estatus','Activo'),
+    db.from('proyectos').select('*,clientes(nombre_empresa)'),
+    db.from('tareas').select('*').neq('estado','Completada').neq('estado','Cancelada'),
+    db.from('cuentas_cobrar').select('*').neq('estatus','Pagada').neq('estatus','Cancelada'),
+    db.from('pipeline').select('*').neq('etapa','Cerrado Ganado').neq('etapa','Cerrado Perdido'),
+  ]);
+  const cl = clientes.data||[], pr = proyectos.data||[], ta = tareas.data||[], co = cobrar.data||[], pip = pipeline.data||[];
+  const totalCobrar = co.reduce((s,r)=>s+Number(r.monto||0),0);
+  const proyRiesgo = pr.filter(p=>p.riesgo==='Alto');
+  const tareasVencidas = ta.filter(t=>t.fecha_limite && daysUntil(t.fecha_limite)<0);
+  const pipelineTotal = pip.reduce((s,r)=>s+Number(r.ticket_estimado||0)*(r.probabilidad||0)/100,0);
+  const proyEnCurso = pr.filter(p=>p.estado==='En curso');
+  const top5 = [...cl].sort((a,b)=>Number(b.honorarios_pactados||0)-Number(a.honorarios_pactados||0)).slice(0,5);
+  const tareasCriticas = ta.filter(t=>t.prioridad==='Crítica'||t.prioridad==='Alta').sort((a,b)=>{
+    const da=a.fecha_limite?daysUntil(a.fecha_limite):999, db2=b.fecha_limite?daysUntil(b.fecha_limite):999;
+    return da-db2;
+  }).slice(0,5);
+
+  content.innerHTML = `
+    <div class="grid-4" style="margin-bottom:20px">
+      <div class="stat-card"><div class="stat-icon">🏢</div><div class="stat-label">Clientes Activos</div><div class="stat-value">${cl.length}</div></div>
+      <div class="stat-card"><div class="stat-icon">📁</div><div class="stat-label">Proyectos en Curso</div><div class="stat-value">${proyEnCurso.length}</div></div>
+      <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-label">Cobranza Pendiente</div><div class="stat-value" style="font-size:20px">${fmt(totalCobrar)}</div></div>
+      <div class="stat-card"><div class="stat-icon">🎯</div><div class="stat-label">Pipeline Ponderado</div><div class="stat-value" style="font-size:20px">${fmt(pipelineTotal)}</div></div>
+    </div>
+    <div class="grid-2" style="margin-bottom:20px">
+      <div class="card">
+        <div class="card-header"><span class="card-title">⚠️ Proyectos en Riesgo Alto (${proyRiesgo.length})</span></div>
+        <div class="card-body" style="padding:0">
+          ${proyRiesgo.length===0?'<div class="empty"><p>Sin proyectos en riesgo alto ✅</p></div>':
+          `<table><thead><tr><th>Proyecto</th><th>Cliente</th><th>Estado</th><th>Fecha límite</th></tr></thead><tbody>
+          ${proyRiesgo.slice(0,6).map(p=>`<tr>
+            <td><strong>${p.nombre}</strong></td>
+            <td>${p.clientes?.nombre_empresa||'—'}</td>
+            <td>${badgeEstatus(p.estado)}</td>
+            <td style="color:${p.fecha_limite&&daysUntil(p.fecha_limite)<0?'var(--red)':'inherit'}">${fmtDate(p.fecha_limite)}</td>
+          </tr>`).join('')}</tbody></table>`}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">🔥 Tareas Críticas / Alta Prioridad</span></div>
+        <div class="card-body" style="padding:0">
+          ${tareasCriticas.length===0?'<div class="empty"><p>Sin tareas críticas pendientes ✅</p></div>':
+          `<table><thead><tr><th>Tarea</th><th>Responsable</th><th>Días</th></tr></thead><tbody>
+          ${tareasCriticas.map(t=>{const d=t.fecha_limite?daysUntil(t.fecha_limite):null;return`<tr>
+            <td><strong>${t.titulo}</strong><br><span style="font-size:11px;color:var(--slate2)">${t.area||''}</span></td>
+            <td>${t.responsable||'—'}</td>
+            <td style="font-weight:700;color:${d===null?'inherit':d<0?'var(--red)':d<=3?'var(--amber)':'var(--green)'}">
+              ${d===null?'—':d<0?`${Math.abs(d)}d venc.`:d===0?'Hoy':`${d}d`}
+            </td>
+          </tr>`}).join('')}</tbody></table>`}
+        </div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">🏆 Top 5 Clientes por Honorarios</span></div>
+        <div class="card-body" style="padding:0">
+          ${top5.length===0?'<div class="empty"><p>Sin clientes registrados</p></div>':
+          `<table><thead><tr><th>Cliente</th><th>Sector</th><th>Honorarios</th><th>Riesgo</th></tr></thead><tbody>
+          ${top5.map(c=>`<tr>
+            <td><strong>${c.nombre_empresa}</strong><br><span style="font-size:11px;color:var(--slate2)">${c.representante||''}</span></td>
+            <td><span class="badge badge-blue">${c.sector||'—'}</span></td>
+            <td><strong>${fmt(c.honorarios_pactados)}</strong></td>
+            <td>${badgeRiesgo(c.nivel_riesgo||'Bajo')}</td>
+          </tr>`).join('')}</tbody></table>`}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">⏰ Tareas Vencidas (${tareasVencidas.length})</span></div>
+        <div class="card-body" style="padding:0">
+          ${tareasVencidas.length===0?'<div class="empty"><p>Sin tareas vencidas ✅</p></div>':
+          `<table><thead><tr><th>Tarea</th><th>Responsable</th><th>Vencida hace</th></tr></thead><tbody>
+          ${tareasVencidas.slice(0,6).map(t=>`<tr>
+            <td><strong>${t.titulo}</strong></td>
+            <td>${t.responsable||'—'}</td>
+            <td style="color:var(--red);font-weight:700">${Math.abs(daysUntil(t.fecha_limite))}d</td>
+          </tr>`).join('')}</tbody></table>`}
+        </div>
+      </div>
+    </div>`;
+}
+
+// ============================================================
+// CLIENTES
+// ============================================================
+async function pageClientes() {
+  document.getElementById('topbar-actions').innerHTML = `<button class="btn btn-gold" onclick="openClienteModal()">＋ Nuevo cliente</button>`;
+  await renderClientes();
+}
+
+async function renderClientes(filtroEstatus='', filtroSector='', search='') {
+  const content = document.getElementById('page-content');
+  let query = db.from('clientes').select('*').order('nombre_empresa');
+  if (filtroEstatus) query = query.eq('estatus', filtroEstatus);
+  if (filtroSector) query = query.eq('sector', filtroSector);
+  const { data } = await query;
+  let cl = data||[];
+  if (search) cl = cl.filter(c=>c.nombre_empresa.toLowerCase().includes(search.toLowerCase())||c.rfc?.toLowerCase().includes(search.toLowerCase())||c.representante?.toLowerCase().includes(search.toLowerCase()));
+
+  const totalHonorarios = cl.reduce((s,c)=>s+Number(c.honorarios_pactados||0),0);
+  const altoRiesgo = cl.filter(c=>c.nivel_riesgo==='Alto').length;
+
+  content.innerHTML = `
+    <div class="grid-4" style="margin-bottom:18px">
+      <div class="stat-card"><div class="stat-label">Total clientes</div><div class="stat-value">${cl.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Honorarios totales</div><div class="stat-value" style="font-size:18px">${fmt(totalHonorarios)}</div></div>
+      <div class="stat-card"><div class="stat-label">Alto riesgo</div><div class="stat-value" style="color:var(--red)">${altoRiesgo}</div></div>
+      <div class="stat-card"><div class="stat-label">Activos</div><div class="stat-value" style="color:var(--green)">${cl.filter(c=>c.estatus==='Activo').length}</div></div>
+    </div>
+    <div class="filters">
+      <input class="search-input" placeholder="🔍 Buscar cliente, RFC, representante..." value="${search}" oninput="renderClientes('${filtroEstatus}','${filtroSector}',this.value)">
+      <select class="filter-select" onchange="renderClientes(this.value,'${filtroSector}','${search}')">
+        <option value="">Todos los estatus</option>
+        <option ${filtroEstatus==='Activo'?'selected':''}>Activo</option>
+        <option ${filtroEstatus==='Pausado'?'selected':''}>Pausado</option>
+        <option ${filtroEstatus==='Cerrado'?'selected':''}>Cerrado</option>
+      </select>
+      <select class="filter-select" onchange="renderClientes('${filtroEstatus}',this.value,'${search}')">
+        <option value="">Todos los sectores</option>
+        <option ${filtroSector==='IMMEX'?'selected':''}>IMMEX</option>
+        <option ${filtroSector==='Comercio Exterior'?'selected':''}>Comercio Exterior</option>
+        <option ${filtroSector==='Corporativo'?'selected':''}>Corporativo</option>
+        <option ${filtroSector==='Fiscal Estratégico'?'selected':''}>Fiscal Estratégico</option>
+        <option ${filtroSector==='Litigio'?'selected':''}>Litigio</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Empresa</th><th>RFC</th><th>Sector</th><th>Tipo</th><th>Honorarios</th><th>Complejidad</th><th>Riesgo</th><th>Estatus</th><th></th></tr></thead>
+        <tbody>
+          ${cl.length===0?`<tr><td colspan="9"><div class="empty"><div class="icon">🏢</div><p>No hay clientes registrados</p></div></td></tr>`:''}
+          ${cl.map(c=>`<tr>
+            <td><strong>${c.nombre_empresa}</strong><br><span style="font-size:11px;color:var(--slate2)">${c.representante||''}</span></td>
+            <td style="font-family:'DM Mono',monospace;font-size:12px">${c.rfc||'—'}</td>
+            <td><span class="badge badge-blue">${c.sector||'—'}</span></td>
+            <td><span class="badge badge-gray">${c.tipo_cliente||'—'}</span></td>
+            <td><strong>${fmt(c.honorarios_pactados)}</strong></td>
+            <td>
+              <div style="display:flex;align-items:center;gap:6px">
+                <div class="progress" style="width:60px"><div class="progress-bar" style="width:${(c.nivel_complejidad||0)*20}%"></div></div>
+                <span style="font-size:12px;color:var(--slate2)">${c.nivel_complejidad||0}/5</span>
+              </div>
+            </td>
+            <td>${badgeRiesgo(c.nivel_riesgo||'Bajo')}</td>
+            <td>${badgeEstatus(c.estatus)}</td>
+            <td>
+              <button class="btn btn-outline btn-sm" onclick="openClienteModal('${c.id}')">✏️</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteRecord('clientes','${c.id}',renderClientes)">🗑</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function openClienteModal(id=null) {
+  const isEdit = !!id;
+  const loadAndOpen = async () => {
+    let c = {};
+    if (isEdit) { const {data} = await db.from('clientes').select('*').eq('id',id).single(); c = data||{}; }
+    const body = `
+      <div class="form-row"><div class="form-group"><label>Nombre empresa *</label><input id="f-nombre" value="${c.nombre_empresa||''}" placeholder="Empresa S.A. de C.V."/></div>
+      <div class="form-group"><label>RFC</label><input id="f-rfc" value="${c.rfc||''}" placeholder="RFC123456XXX"/></div></div>
+      <div class="form-row"><div class="form-group"><label>Representante</label><input id="f-rep" value="${c.representante||''}" /></div>
+      <div class="form-group"><label>Sector</label><select id="f-sector"><option value="">— Seleccionar —</option>${['IMMEX','Comercio Exterior','Corporativo','Fiscal Estratégico','Litigio','Otro'].map(s=>`<option ${c.sector===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
+      <div class="form-row"><div class="form-group"><label>Tipo de cliente</label><select id="f-tipo"><option value="">— Seleccionar —</option>${['Iguala','Proyecto','Litigio','Recurrente mensual'].map(s=>`<option ${c.tipo_cliente===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="form-group"><label>Honorarios pactados (MXN)</label><input id="f-hon" type="number" value="${c.honorarios_pactados||''}" placeholder="0.00"/></div></div>
+      <div class="form-row"><div class="form-group"><label>Margen estimado (%)</label><input id="f-margen" type="number" value="${c.margen_estimado||''}" placeholder="0"/></div>
+      <div class="form-group"><label>Nivel de complejidad (1-5)</label><input id="f-comp" type="number" min="1" max="5" value="${c.nivel_complejidad||''}"/></div></div>
+      <div class="form-row"><div class="form-group"><label>Nivel de riesgo</label><select id="f-riesgo"><option value="">— Seleccionar —</option>${['Bajo','Medio','Alto'].map(s=>`<option ${c.nivel_riesgo===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="form-group"><label>Estatus</label><select id="f-estatus"><option value="">— Seleccionar —</option>${['Activo','Pausado','Cerrado'].map(s=>`<option ${c.estatus===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
+      <div class="form-row full"><div class="form-group"><label>Notas</label><textarea id="f-notas">${c.notas||''}</textarea></div></div>`;
+    openModal(isEdit?'Editar Cliente':'Nuevo Cliente', body, 'Guardar', async()=>{
+      const payload = {
+        nombre_empresa: document.getElementById('f-nombre').value,
+        rfc: document.getElementById('f-rfc').value,
+        representante: document.getElementById('f-rep').value,
+        sector: document.getElementById('f-sector').value,
+        tipo_cliente: document.getElementById('f-tipo').value,
+        honorarios_pactados: parseFloat(document.getElementById('f-hon').value)||null,
+        margen_estimado: parseFloat(document.getElementById('f-margen').value)||null,
+        nivel_complejidad: parseInt(document.getElementById('f-comp').value)||null,
+        nivel_riesgo: document.getElementById('f-riesgo').value,
+        estatus: document.getElementById('f-estatus').value||'Activo',
+        notas: document.getElementById('f-notas').value,
+        updated_at: new Date().toISOString(),
+      };
+      if (!payload.nombre_empresa) { showToast('El nombre de empresa es obligatorio','error'); return; }
+      let err;
+      if (isEdit) { ({error:err} = await db.from('clientes').update(payload).eq('id',id)); }
+      else { ({error:err} = await db.from('clientes').insert(payload)); }
+      if (err) { showToast('Error al guardar: '+err.message,'error'); return; }
+      closeModal(); showToast(isEdit?'Cliente actualizado':'Cliente creado'); renderClientes();
+    });
+  };
+  loadAndOpen();
+}
+
+// ============================================================
+// PROYECTOS
+// ============================================================
+async function pageProyectos() {
+  document.getElementById('topbar-actions').innerHTML = `<button class="btn btn-gold" onclick="openProyectoModal()">＋ Nuevo proyecto</button>`;
+  await renderProyectos();
+}
+
+async function renderProyectos(filtroEstado='', filtroRiesgo='', search='') {
+  const content = document.getElementById('page-content');
+  const [pRes, cRes] = await Promise.all([
+    db.from('proyectos').select('*,clientes(nombre_empresa)').order('created_at',{ascending:false}),
+    db.from('clientes').select('id,nombre_empresa').eq('estatus','Activo').order('nombre_empresa')
+  ]);
+  let pr = pRes.data||[];
+  if (filtroEstado) pr = pr.filter(p=>p.estado===filtroEstado);
+  if (filtroRiesgo) pr = pr.filter(p=>p.riesgo===filtroRiesgo);
+  if (search) pr = pr.filter(p=>p.nombre.toLowerCase().includes(search.toLowerCase())||p.clientes?.nombre_empresa?.toLowerCase().includes(search.toLowerCase()));
+
+  content.innerHTML = `
+    <div class="grid-4" style="margin-bottom:18px">
+      <div class="stat-card"><div class="stat-label">Total proyectos</div><div class="stat-value">${pr.length}</div></div>
+      <div class="stat-card"><div class="stat-label">En curso</div><div class="stat-value" style="color:var(--blue)">${pr.filter(p=>p.estado==='En curso').length}</div></div>
+      <div class="stat-card"><div class="stat-label">Riesgo alto</div><div class="stat-value" style="color:var(--red)">${pr.filter(p=>p.riesgo==='Alto').length}</div></div>
+      <div class="stat-card"><div class="stat-label">No facturados</div><div class="stat-value" style="color:var(--amber)">${pr.filter(p=>p.estado==='Terminado').length}</div></div>
+    </div>
+    <div class="filters">
+      <input class="search-input" placeholder="🔍 Buscar proyecto o cliente..." value="${search}" oninput="renderProyectos('${filtroEstado}','${filtroRiesgo}',this.value)">
+      <select class="filter-select" onchange="renderProyectos(this.value,'${filtroRiesgo}','${search}')">
+        <option value="">Todos los estados</option>
+        ${['En curso','En revisión','Terminado','Facturado','Cobrado'].map(s=>`<option ${filtroEstado===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+      <select class="filter-select" onchange="renderProyectos('${filtroEstado}',this.value,'${search}')">
+        <option value="">Todos los riesgos</option>
+        ${['Bajo','Medio','Alto'].map(s=>`<option ${filtroRiesgo===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Proyecto</th><th>Cliente</th><th>Tipo</th><th>Monto</th><th>Horas</th><th>Responsable</th><th>Fecha límite</th><th>Estado</th><th>Riesgo</th><th></th></tr></thead>
+        <tbody>
+          ${pr.length===0?`<tr><td colspan="10"><div class="empty"><div class="icon">📁</div><p>No hay proyectos registrados</p></div></td></tr>`:''}
+          ${pr.map(p=>{
+            const dias=p.fecha_limite?daysUntil(p.fecha_limite):null;
+            const pct=p.horas_estimadas?Math.min(100,Math.round((p.horas_reales||0)/p.horas_estimadas*100)):0;
+            return`<tr>
+              <td><strong>${p.nombre}</strong></td>
+              <td>${p.clientes?.nombre_empresa||'—'}</td>
+              <td><span class="badge badge-purple">${p.tipo||'—'}</span></td>
+              <td>${p.incluido_iguala?'<span class="badge badge-gray">Iguala</span>':fmt(p.monto)}</td>
+              <td>
+                <div style="min-width:80px">
+                  <div style="font-size:11px;color:var(--slate2);margin-bottom:3px">${p.horas_reales||0}h / ${p.horas_estimadas||0}h</div>
+                  <div class="progress"><div class="progress-bar ${pct>90?'danger':pct>60?'':'success'}" style="width:${pct}%"></div></div>
+                </div>
+              </td>
+              <td>${p.responsable||'—'}</td>
+              <td style="color:${dias===null?'inherit':dias<0?'var(--red)':dias<=3?'var(--amber)':'inherit'};font-weight:${dias!==null&&dias<=3?700:400}">
+                ${fmtDate(p.fecha_limite)}${dias!==null&&dias<=0?' ⚠️':''}
+              </td>
+              <td>${badgeEstatus(p.estado)}</td>
+              <td>${badgeRiesgo(p.riesgo||'Bajo')}</td>
+              <td>
+                <button class="btn btn-outline btn-sm" onclick="openProyectoModal('${p.id}')">✏️</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteRecord('proyectos','${p.id}',renderProyectos)">🗑</button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function openProyectoModal(id=null) {
+  const isEdit = !!id;
+  const [cRes, pRes] = await Promise.all([
+    db.from('clientes').select('id,nombre_empresa').eq('estatus','Activo').order('nombre_empresa'),
+    isEdit ? db.from('proyectos').select('*').eq('id',id).single() : {data:{}}
+  ]);
+  const clientes = cRes.data||[], p = pRes.data||{};
+  const body = `
+    <div class="form-row full"><div class="form-group"><label>Nombre del proyecto *</label><input id="f-nombre" value="${p.nombre||''}"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Cliente *</label><select id="f-cliente"><option value="">— Seleccionar —</option>${clientes.map(c=>`<option value="${c.id}" ${p.cliente_id===c.id?'selected':''}>${c.nombre_empresa}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Tipo</label><select id="f-tipo">${['Precios de Transferencia','IMMEX','Reestructura Corporativa','Litigio','Dictamen Fiscal','Cumplimiento','Consultoría','Otro'].map(s=>`<option ${p.tipo===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
+    <div class="form-row"><div class="form-group"><label>Monto (MXN)</label><input id="f-monto" type="number" value="${p.monto||''}"/></div>
+    <div class="form-group"><label>¿Incluido en iguala?</label><select id="f-iguala"><option value="false" ${!p.incluido_iguala?'selected':''}>No</option><option value="true" ${p.incluido_iguala?'selected':''}>Sí</option></select></div></div>
+    <div class="form-row"><div class="form-group"><label>Fecha inicio</label><input id="f-inicio" type="date" value="${p.fecha_inicio||''}"/></div>
+    <div class="form-group"><label>Fecha límite</label><input id="f-limite" type="date" value="${p.fecha_limite||''}"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Responsable</label><input id="f-resp" value="${p.responsable||''}"/></div>
+    <div class="form-group"><label>Estado</label><select id="f-estado">${['En curso','En revisión','Terminado','Facturado','Cobrado'].map(s=>`<option ${p.estado===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
+    <div class="form-row"><div class="form-group"><label>Prioridad</label><select id="f-prio">${['Baja','Media','Alta','Crítica'].map(s=>`<option ${p.prioridad===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Riesgo</label><select id="f-riesgo">${['Bajo','Medio','Alto'].map(s=>`<option ${p.riesgo===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
+    <div class="form-row"><div class="form-group"><label>Horas estimadas</label><input id="f-hest" type="number" value="${p.horas_estimadas||''}"/></div>
+    <div class="form-group"><label>Horas reales</label><input id="f-hreal" type="number" value="${p.horas_reales||''}"/></div></div>
+    <div class="form-row full"><div class="form-group"><label>Notas</label><textarea id="f-notas">${p.notas||''}</textarea></div></div>`;
+  openModal(isEdit?'Editar Proyecto':'Nuevo Proyecto', body, 'Guardar', async()=>{
+    const payload = {
+      nombre: document.getElementById('f-nombre').value,
+      cliente_id: document.getElementById('f-cliente').value||null,
+      tipo: document.getElementById('f-tipo').value,
+      monto: parseFloat(document.getElementById('f-monto').value)||null,
+      incluido_iguala: document.getElementById('f-iguala').value==='true',
+      fecha_inicio: document.getElementById('f-inicio').value||null,
+      fecha_limite: document.getElementById('f-limite').value||null,
+      responsable: document.getElementById('f-resp').value,
+      estado: document.getElementById('f-estado').value,
+      prioridad: document.getElementById('f-prio').value,
+      riesgo: document.getElementById('f-riesgo').value,
+      horas_estimadas: parseFloat(document.getElementById('f-hest').value)||null,
+      horas_reales: parseFloat(document.getElementById('f-hreal').value)||0,
+      notas: document.getElementById('f-notas').value,
+      updated_at: new Date().toISOString(),
+    };
+    if (!payload.nombre) { showToast('El nombre es obligatorio','error'); return; }
+    let err;
+    if (isEdit) { ({error:err} = await db.from('proyectos').update(payload).eq('id',id)); }
+    else { ({error:err} = await db.from('proyectos').insert(payload)); }
+    if (err) { showToast('Error: '+err.message,'error'); return; }
+    closeModal(); showToast(isEdit?'Proyecto actualizado':'Proyecto creado'); renderProyectos();
+  });
+}
+
+// ============================================================
+// TAREAS
+// ============================================================
+async function pageTareas() {
+  document.getElementById('topbar-actions').innerHTML = `<button class="btn btn-gold" onclick="openTareaModal()">＋ Nueva tarea</button>`;
+  await renderTareas();
+}
+
+async function renderTareas(filtroEstado='', filtroResp='', search='') {
+  const content = document.getElementById('page-content');
+  const { data: tareas } = await db.from('tareas').select('*,proyectos(nombre,clientes(nombre_empresa))').order('fecha_limite',{ascending:true,nullsFirst:false});
+  let ta = tareas||[];
+  if (filtroEstado) ta = ta.filter(t=>t.estado===filtroEstado);
+  if (filtroResp) ta = ta.filter(t=>t.responsable===filtroResp);
+  if (search) ta = ta.filter(t=>t.titulo.toLowerCase().includes(search.toLowerCase()));
+  const responsables = [...new Set((tareas||[]).map(t=>t.responsable).filter(Boolean))];
+
+  content.innerHTML = `
+    <div class="grid-4" style="margin-bottom:18px">
+      <div class="stat-card"><div class="stat-label">Total tareas</div><div class="stat-value">${ta.length}</div></div>
+      <div class="stat-card"><div class="stat-label">En curso</div><div class="stat-value" style="color:var(--blue)">${ta.filter(t=>t.estado==='En curso').length}</div></div>
+      <div class="stat-card"><div class="stat-label">Vencidas</div><div class="stat-value" style="color:var(--red)">${ta.filter(t=>t.fecha_limite&&daysUntil(t.fecha_limite)<0&&t.estado!=='Completada').length}</div></div>
+      <div class="stat-card"><div class="stat-label">Facturables pendientes</div><div class="stat-value" style="color:var(--amber)">${ta.filter(t=>t.facturable&&t.estado!=='Completada').length}</div></div>
+    </div>
+    <div class="filters">
+      <input class="search-input" placeholder="🔍 Buscar tarea..." value="${search}" oninput="renderTareas('${filtroEstado}','${filtroResp}',this.value)">
+      <select class="filter-select" onchange="renderTareas(this.value,'${filtroResp}','${search}')">
+        <option value="">Todos los estados</option>
+        ${['Pendiente','En curso','En revisión','Completada','Cancelada'].map(s=>`<option ${filtroEstado===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+      <select class="filter-select" onchange="renderTareas('${filtroEstado}',this.value,'${search}')">
+        <option value="">Todos los responsables</option>
+        ${responsables.map(r=>`<option ${filtroResp===r?'selected':''}>${r}</option>`).join('')}
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tarea</th><th>Proyecto / Cliente</th><th>Área</th><th>Responsable</th><th>Fecha límite</th><th>Prioridad</th><th>Horas</th><th>Facturable</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+          ${ta.length===0?`<tr><td colspan="10"><div class="empty"><div class="icon">✅</div><p>No hay tareas registradas</p></div></td></tr>`:''}
+          ${ta.map(t=>{
+            const dias=t.fecha_limite?daysUntil(t.fecha_limite):null;
+            return`<tr>
+              <td><strong>${t.titulo}</strong></td>
+              <td><span style="font-size:12px">${t.proyectos?.nombre||'—'}</span><br><span style="font-size:11px;color:var(--slate2)">${t.proyectos?.clientes?.nombre_empresa||''}</span></td>
+              <td><span class="badge badge-blue">${t.area||'—'}</span></td>
+              <td>${t.responsable||'—'}</td>
+              <td style="color:${dias===null?'inherit':dias<0?'var(--red)':dias<=2?'var(--amber)':'inherit'};font-weight:${dias!==null&&dias<=2?700:400}">
+                ${fmtDate(t.fecha_limite)}${dias!==null&&dias<0?' ⚠️':''}
+              </td>
+              <td>${badgeRiesgo(t.prioridad||'Media')}</td>
+              <td>
+                <span class="hora-badge" onclick="logHoras('tareas','${t.id}',${t.horas_reales||0})">⏱ ${t.horas_reales||0}h / ${t.horas_estimadas||0}h</span>
+              </td>
+              <td>${t.facturable?'<span class="badge badge-green">Sí</span>':'<span class="badge badge-gray">No</span>'}</td>
+              <td>${badgeEstatus(t.estado)}</td>
+              <td>
+                <button class="btn btn-outline btn-sm" onclick="openTareaModal('${t.id}')">✏️</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteRecord('tareas','${t.id}',renderTareas)">🗑</button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function openTareaModal(id=null) {
+  const isEdit = !!id;
+  const [pRes, tRes] = await Promise.all([
+    db.from('proyectos').select('id,nombre,clientes(nombre_empresa)').order('nombre'),
+    isEdit ? db.from('tareas').select('*').eq('id',id).single() : {data:{}}
+  ]);
+  const proyectos = pRes.data||[], t = tRes.data||{};
+  const body = `
+    <div class="form-row full"><div class="form-group"><label>Título de la tarea *</label><input id="f-titulo" value="${t.titulo||''}"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Proyecto</label><select id="f-proyecto"><option value="">— Sin proyecto —</option>${proyectos.map(p=>`<option value="${p.id}" ${t.proyecto_id===p.id?'selected':''}>${p.nombre} · ${p.clientes?.nombre_empresa||''}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Área</label><select id="f-area">${['Fiscal','Legal','Contable','Corporativo','IMMEX','Litigio','Administrativo','Otro'].map(s=>`<option ${t.area===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
+    <div class="form-row"><div class="form-group"><label>Responsable</label><input id="f-resp" value="${t.responsable||''}"/></div>
+    <div class="form-group"><label>Fecha límite</label><input id="f-limite" type="date" value="${t.fecha_limite||''}"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Prioridad</label><select id="f-prio">${['Baja','Media','Alta','Crítica'].map(s=>`<option ${t.prioridad===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Tipo</label><select id="f-tipo">${['Análisis','Documento','Junta','Estrategia','Presentación SAT','Trámite','Revisión','Otro'].map(s=>`<option ${t.tipo===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
+    <div class="form-row"><div class="form-group"><label>Horas estimadas</label><input id="f-hest" type="number" value="${t.horas_estimadas||''}"/></div>
+    <div class="form-group"><label>Horas reales</label><input id="f-hreal" type="number" step="0.5" value="${t.horas_reales||''}"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Estado</label><select id="f-estado">${['Pendiente','En curso','En revisión','Completada','Cancelada'].map(s=>`<option ${t.estado===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="form-group"><label>¿Facturable?</label><select id="f-fact"><option value="false" ${!t.facturable?'selected':''}>No</option><option value="true" ${t.facturable?'selected':''}>Sí</option></select></div></div>
+    <div class="form-row full"><div class="form-group"><label>Notas</label><textarea id="f-notas">${t.notas||''}</textarea></div></div>`;
+  openModal(isEdit?'Editar Tarea':'Nueva Tarea', body, 'Guardar', async()=>{
+    const payload = {
+      titulo: document.getElementById('f-titulo').value,
+      proyecto_id: document.getElementById('f-proyecto').value||null,
+      area: document.getElementById('f-area').value,
+      responsable: document.getElementById('f-resp').value,
+      fecha_limite: document.getElementById('f-limite').value||null,
+      prioridad: document.getElementById('f-prio').value,
+      tipo: document.getElementById('f-tipo').value,
+      horas_estimadas: parseFloat(document.getElementById('f-hest').value)||null,
+      horas_reales: parseFloat(document.getElementById('f-hreal').value)||0,
+      estado: document.getElementById('f-estado').value,
+      facturable: document.getElementById('f-fact').value==='true',
+      notas: document.getElementById('f-notas').value,
+      updated_at: new Date().toISOString(),
+    };
+    if (!payload.titulo) { showToast('El título es obligatorio','error'); return; }
+    let err;
+    if (isEdit) { ({error:err} = await db.from('tareas').update(payload).eq('id',id)); }
+    else { ({error:err} = await db.from('tareas').insert(payload)); }
+    if (err) { showToast('Error: '+err.message,'error'); return; }
+    closeModal(); showToast(isEdit?'Tarea actualizada':'Tarea creada'); renderTareas();
+  });
+}
+
+function logHoras(tabla, id, actual) {
+  openModal('⏱ Registrar horas',
+    `<div class="form-group"><label>Horas reales acumuladas</label><input id="f-horas" type="number" step="0.5" value="${actual}" style="font-size:20px;font-weight:700;text-align:center"/></div>
+     <p style="text-align:center;color:var(--slate2);font-size:12px;margin-top:8px">Actualiza el total de horas reales trabajadas</p>`,
+    'Guardar horas', async()=>{
+      const h = parseFloat(document.getElementById('f-horas').value)||0;
+      const {error} = await db.from(tabla).update({horas_reales:h,updated_at:new Date().toISOString()}).eq('id',id);
+      if (error) { showToast('Error: '+error.message,'error'); return; }
+      closeModal(); showToast('Horas actualizadas ⏱'); if(currentPage==='tareas') renderTareas(); else renderProyectos();
+    });
+}
+
+// ============================================================
+// FINANZAS
+// ============================================================
+async function pageFinanzas() {
+  document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn btn-gold" onclick="openCobrarModal()">＋ Factura</button>
+    <button class="btn btn-dark" onclick="openPagarModal()">＋ Cuenta por pagar</button>`;
+  await renderFinanzas();
+}
+
+async function renderFinanzas(tab='cobrar') {
+  const content = document.getElementById('page-content');
+  const [cobRes, pagRes] = await Promise.all([
+    db.from('cuentas_cobrar').select('*,clientes(nombre_empresa)').order('fecha_vencimiento'),
+    db.from('cuentas_pagar').select('*').order('fecha_vencimiento')
+  ]);
+  const co = cobRes.data||[], pa = pagRes.data||[];
+  const now = today();
+  const aging = {a0:0,a30:0,a60:0,a90:0};
+  co.filter(r=>r.estatus!=='Pagada'&&r.estatus!=='Cancelada').forEach(r=>{
+    const d = r.fecha_vencimiento ? Math.floor((new Date()-new Date(r.fecha_vencimiento+'T12:00:00'))/86400000) : 0;
+    const m = Number(r.monto||0);
+    if(d<=0) aging.a0+=m; else if(d<=30) aging.a30+=m; else if(d<=60) aging.a60+=m; else aging.a90+=m;
+  });
+
+  content.innerHTML = `
+    <div class="aging-grid">
+      <div class="aging-card a0"><div class="amount" style="color:var(--green)">${fmt(aging.a0)}</div><div class="label" style="color:var(--green)">0–30 días</div></div>
+      <div class="aging-card a30"><div class="amount" style="color:var(--amber)">${fmt(aging.a30)}</div><div class="label" style="color:var(--amber)">31–60 días</div></div>
+      <div class="aging-card a60"><div class="amount" style="color:#c05621">${fmt(aging.a60)}</div><div class="label" style="color:#c05621">61–90 días</div></div>
+      <div class="aging-card a90"><div class="amount" style="color:var(--red)">${fmt(aging.a90)}</div><div class="label" style="color:var(--red)">+90 días</div></div>
+    </div>
+    <div class="tabs">
+      <button class="tab ${tab==='cobrar'?'active':''}" onclick="renderFinanzas('cobrar')">💵 Cuentas por Cobrar (${co.filter(r=>r.estatus!=='Pagada').length})</button>
+      <button class="tab ${tab==='pagar'?'active':''}" onclick="renderFinanzas('pagar')">📤 Cuentas por Pagar (${pa.filter(r=>r.estatus!=='Pagada').length})</button>
+    </div>
+    ${tab==='cobrar'?`
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Cliente</th><th>Proyecto</th><th>Folio</th><th>Monto</th><th>Emision</th><th>Vencimiento</th><th>Días</th><th>Prob. cobro</th><th>Estatus</th><th></th></tr></thead>
+        <tbody>
+          ${co.length===0?`<tr><td colspan="10"><div class="empty"><p>Sin facturas registradas</p></div></td></tr>`:''}
+          ${co.map(r=>{
+            const dias=r.fecha_vencimiento?Math.floor((new Date()-new Date(r.fecha_vencimiento+'T12:00:00'))/86400000):null;
+            return`<tr>
+              <td><strong>${r.clientes?.nombre_empresa||'—'}</strong></td>
+              <td style="font-size:12px">${r.proyecto_id||'—'}</td>
+              <td style="font-family:'DM Mono',monospace;font-size:12px">${r.folio_factura||'—'}</td>
+              <td><strong>${fmt(r.monto)}</strong></td>
+              <td>${fmtDate(r.fecha_emision)}</td>
+              <td>${fmtDate(r.fecha_vencimiento)}</td>
+              <td style="font-weight:700;color:${dias===null?'inherit':dias>90?'var(--red)':dias>30?'var(--amber)':'var(--green)'}">
+                ${dias===null?'—':dias>0?`${dias}d`:'Vigente'}
+              </td>
+              <td>${badgeRiesgo(r.probabilidad_cobro||'Alta')}</td>
+              <td>${badgeEstatus(r.estatus)}</td>
+              <td>
+                ${r.estatus!=='Pagada'?`<button class="btn btn-gold btn-sm" onclick="marcarPagado('cuentas_cobrar','${r.id}',renderFinanzas)">✓ Cobrado</button>`:''}
+                <button class="btn btn-danger btn-sm" onclick="deleteRecord('cuentas_cobrar','${r.id}',renderFinanzas)">🗑</button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`:`
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Proveedor</th><th>Concepto</th><th>Monto</th><th>Vencimiento</th><th>Prioridad</th><th>Impacto</th><th>Estatus</th><th></th></tr></thead>
+        <tbody>
+          ${pa.length===0?`<tr><td colspan="8"><div class="empty"><p>Sin cuentas por pagar</p></div></td></tr>`:''}
+          ${pa.map(r=>`<tr>
+            <td><strong>${r.proveedor}</strong></td>
+            <td>${r.concepto||'—'}</td>
+            <td><strong>${fmt(r.monto)}</strong></td>
+            <td>${fmtDate(r.fecha_vencimiento)}</td>
+            <td>${badgeRiesgo(r.prioridad||'Media')}</td>
+            <td>${r.impacto_operativo?`<span class="badge badge-${r.impacto_operativo==='Crítico'?'red':r.impacto_operativo==='Alto'?'amber':'gray'}">${r.impacto_operativo}</span>`:'—'}</td>
+            <td>${badgeEstatus(r.estatus)}</td>
+            <td>
+              ${r.estatus!=='Pagada'?`<button class="btn btn-gold btn-sm" onclick="marcarPagado('cuentas_pagar','${r.id}',renderFinanzas)">✓ Pagado</button>`:''}
+              <button class="btn btn-danger btn-sm" onclick="deleteRecord('cuentas_pagar','${r.id}',renderFinanzas)">🗑</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`}`;
+}
+
+async function openCobrarModal() {
+  const {data:cl} = await db.from('clientes').select('id,nombre_empresa').eq('estatus','Activo').order('nombre_empresa');
+  const body = `
+    <div class="form-row"><div class="form-group"><label>Cliente *</label><select id="f-cliente"><option value="">— Seleccionar —</option>${(cl||[]).map(c=>`<option value="${c.id}">${c.nombre_empresa}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Folio factura</label><input id="f-folio" placeholder="FAC-2025-001"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Monto (MXN) *</label><input id="f-monto" type="number" placeholder="0.00"/></div>
+    <div class="form-group"><label>Probabilidad de cobro</label><select id="f-prob"><option>Alta</option><option>Media</option><option>Baja</option></select></div></div>
+    <div class="form-row"><div class="form-group"><label>Fecha emisión</label><input id="f-emision" type="date" value="${today()}"/></div>
+    <div class="form-group"><label>Fecha vencimiento</label><input id="f-vence" type="date"/></div></div>
+    <div class="form-row full"><div class="form-group"><label>Notas</label><textarea id="f-notas"></textarea></div></div>`;
+  openModal('Nueva Factura / Cuenta por Cobrar', body, 'Registrar', async()=>{
+    const payload = {
+      cliente_id: document.getElementById('f-cliente').value||null,
+      folio_factura: document.getElementById('f-folio').value,
+      monto: parseFloat(document.getElementById('f-monto').value),
+      probabilidad_cobro: document.getElementById('f-prob').value,
+      fecha_emision: document.getElementById('f-emision').value||null,
+      fecha_vencimiento: document.getElementById('f-vence').value||null,
+      notas: document.getElementById('f-notas').value,
+      estatus: 'Emitida',
+    };
+    if (!payload.monto) { showToast('El monto es obligatorio','error'); return; }
+    const {error} = await db.from('cuentas_cobrar').insert(payload);
+    if (error) { showToast('Error: '+error.message,'error'); return; }
+    closeModal(); showToast('Factura registrada'); renderFinanzas();
+  });
+}
+
+async function openPagarModal() {
+  const body = `
+    <div class="form-row"><div class="form-group"><label>Proveedor *</label><input id="f-prov" placeholder="Nombre del proveedor"/></div>
+    <div class="form-group"><label>Concepto</label><input id="f-conc" placeholder="Descripción del servicio"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Monto (MXN) *</label><input id="f-monto" type="number"/></div>
+    <div class="form-group"><label>Fecha vencimiento</label><input id="f-vence" type="date"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Prioridad</label><select id="f-prio"><option>Baja</option><option selected>Media</option><option>Alta</option><option>Urgente</option></select></div>
+    <div class="form-group"><label>Impacto operativo</label><select id="f-imp"><option>Sin impacto</option><option>Bajo</option><option>Medio</option><option>Alto</option><option>Crítico</option></select></div></div>`;
+  openModal('Nueva Cuenta por Pagar', body, 'Registrar', async()=>{
+    const payload = {
+      proveedor: document.getElementById('f-prov').value,
+      concepto: document.getElementById('f-conc').value,
+      monto: parseFloat(document.getElementById('f-monto').value),
+      fecha_vencimiento: document.getElementById('f-vence').value||null,
+      prioridad: document.getElementById('f-prio').value,
+      impacto_operativo: document.getElementById('f-imp').value,
+      estatus: 'Pendiente',
+    };
+    if (!payload.proveedor || !payload.monto) { showToast('Proveedor y monto son obligatorios','error'); return; }
+    const {error} = await db.from('cuentas_pagar').insert(payload);
+    if (error) { showToast('Error: '+error.message,'error'); return; }
+    closeModal(); showToast('Cuenta por pagar registrada'); renderFinanzas('pagar');
+  });
+}
+
+async function marcarPagado(tabla, id, cb) {
+  const {error} = await db.from(tabla).update({estatus:'Pagada'}).eq('id',id);
+  if (error) { showToast('Error: '+error.message,'error'); return; }
+  showToast('Marcado como pagado ✓'); cb();
+}
+
+// ============================================================
+// PIPELINE
+// ============================================================
+async function pagePipeline() {
+  document.getElementById('topbar-actions').innerHTML = `<button class="btn btn-gold" onclick="openPipelineModal()">＋ Nuevo prospecto</button>`;
+  await renderPipeline();
+}
+
+async function renderPipeline() {
+  const content = document.getElementById('page-content');
+  const {data} = await db.from('pipeline').select('*').order('created_at',{ascending:false});
+  const pip = data||[];
+  const etapas = ['Lead','Reunión','Propuesta','Negociación','Cerrado Ganado','Cerrado Perdido'];
+  const totalPond = pip.filter(p=>!['Cerrado Ganado','Cerrado Perdido'].includes(p.etapa)).reduce((s,p)=>s+Number(p.ticket_estimado||0)*(p.probabilidad||0)/100,0);
+  const ganados = pip.filter(p=>p.etapa==='Cerrado Ganado').reduce((s,p)=>s+Number(p.ticket_estimado||0),0);
+
+  content.innerHTML = `
+    <div class="grid-4" style="margin-bottom:18px">
+      <div class="stat-card"><div class="stat-label">Prospectos activos</div><div class="stat-value">${pip.filter(p=>!p.etapa.includes('Cerrado')).length}</div></div>
+      <div class="stat-card"><div class="stat-label">Pipeline ponderado</div><div class="stat-value" style="font-size:18px">${fmt(totalPond)}</div></div>
+      <div class="stat-card"><div class="stat-label">Cerrados ganados</div><div class="stat-value" style="color:var(--green)">${fmt(ganados)}</div></div>
+      <div class="stat-card"><div class="stat-label">Ticket promedio</div><div class="stat-value" style="font-size:18px">${pip.length?fmt(pip.reduce((s,p)=>s+Number(p.ticket_estimado||0),0)/pip.length):fmt(0)}</div></div>
+    </div>
+    <div class="kanban">
+      ${etapas.map(etapa=>{
+        const items = pip.filter(p=>p.etapa===etapa);
+        const colors = {Lead:'var(--slate)',Reunión:'var(--blue)','Propuesta':'var(--amber)',Negociación:'var(--purple)','Cerrado Ganado':'var(--green)','Cerrado Perdido':'var(--red)'};
+        return`<div class="kanban-col">
+          <div class="kanban-col-title" style="color:${colors[etapa]}">
+            ${etapa} <span style="background:${colors[etapa]}20;color:${colors[etapa]};border-radius:12px;padding:1px 8px;font-size:11px">${items.length}</span>
+          </div>
+          ${items.length===0?'<div style="text-align:center;padding:20px;font-size:11px;color:var(--slate3)">Sin prospectos</div>':''}
+          ${items.map(p=>`<div class="kanban-card" onclick="openPipelineModal('${p.id}')">
+            <h4>${p.prospecto}</h4>
+            <p>${p.servicio_interes||'—'}</p>
+            <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+              <strong style="font-size:13px;color:var(--ink2)">${fmt(p.ticket_estimado)}</strong>
+              <span style="font-size:11px;background:var(--amber2);color:var(--amber);padding:2px 8px;border-radius:10px;font-weight:700">${p.probabilidad||0}%</span>
+            </div>
+          </div>`).join('')}
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+async function openPipelineModal(id=null) {
+  const isEdit = !!id;
+  let p = {};
+  if (isEdit) { const {data} = await db.from('pipeline').select('*').eq('id',id).single(); p = data||{}; }
+  const body = `
+    <div class="form-row full"><div class="form-group"><label>Nombre del prospecto *</label><input id="f-prosp" value="${p.prospecto||''}"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Fuente</label><select id="f-fuente">${['Referido','LinkedIn','Web','Evento','Llamada fría','Otro'].map(s=>`<option ${p.fuente===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Servicio de interés</label><input id="f-serv" value="${p.servicio_interes||''}"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Ticket estimado (MXN)</label><input id="f-ticket" type="number" value="${p.ticket_estimado||''}"/></div>
+    <div class="form-group"><label>Probabilidad (%)</label><input id="f-prob" type="number" min="0" max="100" value="${p.probabilidad||50}"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Etapa</label><select id="f-etapa">${['Lead','Reunión','Propuesta','Negociación','Cerrado Ganado','Cerrado Perdido'].map(s=>`<option ${p.etapa===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Fecha probable cierre</label><input id="f-cierre" type="date" value="${p.fecha_probable_cierre||''}"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Responsable</label><input id="f-resp" value="${p.responsable||''}"/></div></div>
+    <div class="form-row full"><div class="form-group"><label>Notas</label><textarea id="f-notas">${p.notas||''}</textarea></div></div>`;
+  openModal(isEdit?'Editar Prospecto':'Nuevo Prospecto', body, 'Guardar', async()=>{
+    const payload = {
+      prospecto: document.getElementById('f-prosp').value,
+      fuente: document.getElementById('f-fuente').value,
+      servicio_interes: document.getElementById('f-serv').value,
+      ticket_estimado: parseFloat(document.getElementById('f-ticket').value)||null,
+      probabilidad: parseInt(document.getElementById('f-prob').value)||0,
+      etapa: document.getElementById('f-etapa').value,
+      fecha_probable_cierre: document.getElementById('f-cierre').value||null,
+      responsable: document.getElementById('f-resp').value,
+      notas: document.getElementById('f-notas').value,
+      updated_at: new Date().toISOString(),
+    };
+    if (!payload.prospecto) { showToast('El nombre es obligatorio','error'); return; }
+    let err;
+    if (isEdit) { ({error:err} = await db.from('pipeline').update(payload).eq('id',id)); }
+    else { ({error:err} = await db.from('pipeline').insert(payload)); }
+    if (err) { showToast('Error: '+err.message,'error'); return; }
+    closeModal(); showToast(isEdit?'Prospecto actualizado':'Prospecto creado'); renderPipeline();
+  });
+}
+
+// ============================================================
+// MARKETING
+// ============================================================
+async function pageMarketing() {
+  document.getElementById('topbar-actions').innerHTML = `<button class="btn btn-gold" onclick="openMarketingModal()">＋ Nuevo contenido</button>`;
+  await renderMarketing();
+}
+
+async function renderMarketing() {
+  const content = document.getElementById('page-content');
+  const {data} = await db.from('marketing').select('*').order('fecha_publicacion',{ascending:false});
+  const mk = data||[];
+  const totalLeads = mk.reduce((s,m)=>s+(m.leads_generados||0),0);
+  const convertidos = mk.filter(m=>m.cliente_convertido).length;
+  content.innerHTML = `
+    <div class="grid-4" style="margin-bottom:18px">
+      <div class="stat-card"><div class="stat-label">Contenidos totales</div><div class="stat-value">${mk.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Leads generados</div><div class="stat-value" style="color:var(--blue)">${totalLeads}</div></div>
+      <div class="stat-card"><div class="stat-label">Convertidos a cliente</div><div class="stat-value" style="color:var(--green)">${convertidos}</div></div>
+      <div class="stat-card"><div class="stat-label">Tasa conversión</div><div class="stat-value">${totalLeads?Math.round(convertidos/totalLeads*100):0}%</div></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tema</th><th>Tipo</th><th>Área</th><th>Objetivo</th><th>Publicación</th><th>Leads</th><th>Cliente convertido</th><th></th></tr></thead>
+        <tbody>
+          ${mk.length===0?`<tr><td colspan="8"><div class="empty"><div class="icon">📣</div><p>Sin contenido registrado</p></div></td></tr>`:''}
+          ${mk.map(m=>`<tr>
+            <td><strong>${m.tema}</strong></td>
+            <td><span class="badge badge-purple">${m.tipo||'—'}</span></td>
+            <td><span class="badge badge-blue">${m.area||'—'}</span></td>
+            <td><span class="badge badge-amber">${m.objetivo||'—'}</span></td>
+            <td>${fmtDate(m.fecha_publicacion)}</td>
+            <td><strong>${m.leads_generados||0}</strong></td>
+            <td>${m.cliente_convertido?`<span class="badge badge-green">${m.cliente_convertido}</span>`:'—'}</td>
+            <td><button class="btn btn-danger btn-sm" onclick="deleteRecord('marketing','${m.id}',renderMarketing)">🗑</button></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function openMarketingModal() {
+  const body = `
+    <div class="form-row full"><div class="form-group"><label>Tema del contenido *</label><input id="f-tema" placeholder="Ej: IMMEX y controles de exportación China"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Tipo</label><select id="f-tipo">${['Reel','Artículo','LinkedIn','Newsletter','Podcast','Otro'].map(s=>`<option>${s}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Área</label><input id="f-area" placeholder="Fiscal, IMMEX, Corporativo..."/></div></div>
+    <div class="form-row"><div class="form-group"><label>Objetivo</label><select id="f-obj">${['Autoridad','Conversión','Educación','Marca'].map(s=>`<option>${s}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Fecha publicación</label><input id="f-fecha" type="date" value="${today()}"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Leads generados</label><input id="f-leads" type="number" value="0"/></div>
+    <div class="form-group"><label>Cliente convertido (si aplica)</label><input id="f-conv" placeholder="Nombre del cliente"/></div></div>
+    <div class="form-row full"><div class="form-group"><label>Notas</label><textarea id="f-notas"></textarea></div></div>`;
+  openModal('Nuevo Contenido', body, 'Registrar', async()=>{
+    const payload = {
+      tema: document.getElementById('f-tema').value,
+      tipo: document.getElementById('f-tipo').value,
+      area: document.getElementById('f-area').value,
+      objetivo: document.getElementById('f-obj').value,
+      fecha_publicacion: document.getElementById('f-fecha').value||null,
+      leads_generados: parseInt(document.getElementById('f-leads').value)||0,
+      cliente_convertido: document.getElementById('f-conv').value||null,
+      notas: document.getElementById('f-notas').value,
+    };
+    if (!payload.tema) { showToast('El tema es obligatorio','error'); return; }
+    const {error} = await db.from('marketing').insert(payload);
+    if (error) { showToast('Error: '+error.message,'error'); return; }
+    closeModal(); showToast('Contenido registrado'); renderMarketing();
+  });
+}
+
+// ============================================================
+// TALENTO
+// ============================================================
+async function pageTalento() {
+  document.getElementById('topbar-actions').innerHTML = `<button class="btn btn-gold" onclick="openTalentoModal()">＋ Registrar evaluación</button>`;
+  await renderTalento();
+}
+
+async function renderTalento() {
+  const content = document.getElementById('page-content');
+  const {data} = await db.from('talento').select('*').order('created_at',{ascending:false});
+  const tl = data||[];
+  content.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Colaborador</th><th>Rol</th><th>Mes/Año</th><th>Horas meta</th><th>Horas reales</th><th>Eficiencia</th><th>KPI</th><th>Rentabilidad</th><th>Evaluación</th><th></th></tr></thead>
+        <tbody>
+          ${tl.length===0?`<tr><td colspan="10"><div class="empty"><div class="icon">👥</div><p>Sin evaluaciones registradas</p></div></td></tr>`:''}
+          ${tl.map(t=>{
+            const pct = t.horas_facturables_meta ? Math.round((t.horas_reales_mes||0)/t.horas_facturables_meta*100) : 0;
+            const evalColors = {Excelente:'green',Bueno:'blue',Regular:'amber','Necesita mejora':'red'};
+            return`<tr>
+              <td><strong>${t.nombre}</strong></td>
+              <td><span class="badge badge-blue">${t.rol||'—'}</span></td>
+              <td style="font-family:'DM Mono',monospace;font-size:12px">${t.mes||'—'}/${t.anio||'—'}</td>
+              <td>${t.horas_facturables_meta||0}h</td>
+              <td>${t.horas_reales_mes||0}h</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:6px;min-width:100px">
+                  <div class="progress" style="width:60px"><div class="progress-bar ${pct<60?'danger':pct>=90?'success':''}" style="width:${Math.min(pct,100)}%"></div></div>
+                  <span style="font-size:12px;font-weight:700;color:${pct<60?'var(--red)':pct>=90?'var(--green)':'var(--amber)'}">${pct}%</span>
+                </div>
+              </td>
+              <td style="font-size:12px">${t.kpi_mensual||'—'}</td>
+              <td>${t.rentabilidad?`<strong>${t.rentabilidad}%</strong>`:'—'}</td>
+              <td>${t.evaluacion_desempeno?`<span class="badge badge-${evalColors[t.evaluacion_desempeno]||'gray'}">${t.evaluacion_desempeno}</span>`:'—'}</td>
+              <td><button class="btn btn-danger btn-sm" onclick="deleteRecord('talento','${t.id}',renderTalento)">🗑</button></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function openTalentoModal() {
+  const mesActual = new Date().getMonth()+1;
+  const anioActual = new Date().getFullYear();
+  const body = `
+    <div class="form-row"><div class="form-group"><label>Colaborador *</label><input id="f-nombre" placeholder="Nombre completo"/></div>
+    <div class="form-group"><label>Rol</label><input id="f-rol" placeholder="Consultor, Gerente..."/></div></div>
+    <div class="form-row"><div class="form-group"><label>Mes</label><input id="f-mes" type="number" min="1" max="12" value="${mesActual}"/></div>
+    <div class="form-group"><label>Año</label><input id="f-anio" type="number" value="${anioActual}"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Horas facturables meta</label><input id="f-hmeta" type="number" value="160"/></div>
+    <div class="form-group"><label>Horas reales del mes</label><input id="f-hreal" type="number" value="0"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Rentabilidad (%)</label><input id="f-rent" type="number" value="0"/></div>
+    <div class="form-group"><label>Evaluación</label><select id="f-eval"><option>Excelente</option><option selected>Bueno</option><option>Regular</option><option>Necesita mejora</option></select></div></div>
+    <div class="form-row full"><div class="form-group"><label>KPI mensual</label><textarea id="f-kpi" placeholder="Describe los logros y métricas del mes..."></textarea></div></div>`;
+  openModal('Registrar Evaluación Mensual', body, 'Guardar', async()=>{
+    const payload = {
+      nombre: document.getElementById('f-nombre').value,
+      rol: document.getElementById('f-rol').value,
+      mes: parseInt(document.getElementById('f-mes').value)||null,
+      anio: parseInt(document.getElementById('f-anio').value)||null,
+      horas_facturables_meta: parseFloat(document.getElementById('f-hmeta').value)||null,
+      horas_reales_mes: parseFloat(document.getElementById('f-hreal').value)||0,
+      rentabilidad: parseFloat(document.getElementById('f-rent').value)||null,
+      evaluacion_desempeno: document.getElementById('f-eval').value,
+      kpi_mensual: document.getElementById('f-kpi').value,
+    };
+    if (!payload.nombre) { showToast('El nombre es obligatorio','error'); return; }
+    const {error} = await db.from('talento').insert(payload);
+    if (error) { showToast('Error: '+error.message,'error'); return; }
+    closeModal(); showToast('Evaluación registrada'); renderTalento();
+  });
+}
+
+// ============================================================
+// GENERIC DELETE
+// ============================================================
+async function deleteRecord(tabla, id, cb) {
+  if (!confirm('¿Confirmas que deseas eliminar este registro? Esta acción no se puede deshacer.')) return;
+  const {error} = await db.from(tabla).delete().eq('id',id);
+  if (error) { showToast('Error al eliminar: '+error.message,'error'); return; }
+  showToast('Registro eliminado');
+  if (cb) cb();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+document.getElementById('login-password').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+checkSession();
+</script>
+</body>
+</html>
