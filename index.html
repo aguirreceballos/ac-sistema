@@ -864,16 +864,17 @@ async function renderTareas(filtroEstado='', filtroResp='', search='') {
 
 async function openTareaModal(id=null) {
   const isEdit = !!id;
-  const [pRes, tRes] = await Promise.all([
+  const [pRes, tRes, uRes] = await Promise.all([
     db.from('proyectos').select('id,nombre,clientes(nombre_empresa)').order('nombre'),
-    isEdit ? db.from('tareas').select('*').eq('id',id).single() : {data:{}}
+    isEdit ? db.from('tareas').select('*').eq('id',id).single() : {data:{}},
+    db.from('usuarios').select('nombre,email').eq('activo',true).order('nombre')
   ]);
-  const proyectos = pRes.data||[], t = tRes.data||{};
+  const proyectos = pRes.data||[], t = tRes.data||{}, usuarios = uRes.data||[];
   const body = `
     <div class="form-row full"><div class="form-group"><label>Título de la tarea *</label><input id="f-titulo" value="${t.titulo||''}"/></div></div>
     <div class="form-row"><div class="form-group"><label>Proyecto</label><select id="f-proyecto"><option value="">— Sin proyecto —</option>${proyectos.map(p=>`<option value="${p.id}" ${t.proyecto_id===p.id?'selected':''}>${p.nombre} · ${p.clientes?.nombre_empresa||''}</option>`).join('')}</select></div>
     <div class="form-group"><label>Área</label><select id="f-area">${['Fiscal','Legal','Contable','Corporativo','IMMEX','Litigio','Administrativo','Otro'].map(s=>`<option ${t.area===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
-    <div class="form-row"><div class="form-group"><label>Responsable</label><input id="f-resp" value="${t.responsable||''}"/></div>
+    <div class="form-row"><div class="form-group"><label>Responsable</label><select id="f-resp"><option value="">— Sin asignar —</option>${usuarios.map(u=>`<option value="${u.nombre}" ${t.responsable===u.nombre?'selected':''}>${u.nombre}</option>`).join('')}</select></div>
     <div class="form-group"><label>Fecha límite</label><input id="f-limite" type="date" value="${t.fecha_limite||''}"/></div></div>
     <div class="form-row"><div class="form-group"><label>Prioridad</label><select id="f-prio">${['Baja','Media','Alta','Crítica'].map(s=>`<option ${t.prioridad===s?'selected':''}>${s}</option>`).join('')}</select></div>
     <div class="form-group"><label>Tipo</label><select id="f-tipo">${['Análisis','Documento','Junta','Estrategia','Presentación SAT','Trámite','Revisión','Otro'].map(s=>`<option ${t.tipo===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
@@ -888,7 +889,6 @@ async function openTareaModal(id=null) {
       proyecto_id: document.getElementById('f-proyecto').value||null,
       area: document.getElementById('f-area').value,
       responsable: document.getElementById('f-resp').value,
-      fecha_limite: document.getElementById('f-limite').value||null,
       prioridad: document.getElementById('f-prio').value,
       tipo: document.getElementById('f-tipo').value,
       horas_estimadas: parseFloat(document.getElementById('f-hest').value)||null,
