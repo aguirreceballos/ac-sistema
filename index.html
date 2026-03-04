@@ -1249,19 +1249,26 @@ async function renderFinanzas(tab='balance', mes='') {
 
 async function openCobrarModal(id=null) {
   const isEdit = !!id;
-  const {data:cl} = await db.from('clientes').select('id,nombre_empresa,email_contacto').eq('estatus','Activo').order('nombre_empresa');
+  const {data:cl} = await db.from('clientes').select('id,nombre_empresa,email_contacto,rfc').eq('estatus','Activo').order('nombre_empresa');
   let r = {};
   if (isEdit) { const {data} = await db.from('cuentas_cobrar').select('*,clientes(nombre_empresa)').eq('id',id).single(); r = data||{}; }
   const body = `
+    ${!isEdit?`<div style="background:var(--cream2);border:2px dashed var(--gold);border-radius:var(--r);padding:16px;margin-bottom:16px;text-align:center">
+      <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:6px">📎 Subir XML del CFDI</div>
+      <div style="font-size:12px;color:var(--slate2);margin-bottom:10px">Se llenarán los datos automáticamente</div>
+      <input type="file" id="f-xml" accept=".xml" onchange="parseCFDI(this)" style="display:none"/>
+      <button class="btn btn-outline" onclick="document.getElementById('f-xml').click()">Seleccionar archivo XML</button>
+      <div id="xml-status" style="font-size:12px;margin-top:8px;color:var(--slate2)"></div>
+    </div>`:''}
     <div class="form-row"><div class="form-group"><label>Cliente *</label><select id="f-cliente"><option value="">— Seleccionar —</option>${(cl||[]).map(c=>`<option value="${c.id}" ${r.cliente_id===c.id?'selected':''}>${c.nombre_empresa}</option>`).join('')}</select></div>
-    <div class="form-group"><label>Folio factura</label><input id="f-folio" value="${r.folio_factura||''}" placeholder="FAC-2025-001"/></div></div>
+    <div class="form-group"><label>Folio / UUID factura</label><input id="f-folio" value="${r.folio_factura||''}" placeholder="FAC-2025-001 o UUID CFDI"/></div></div>
     <div class="form-row"><div class="form-group"><label>Monto total con IVA (MXN) *</label><input id="f-monto" type="number" value="${r.monto||''}" placeholder="0.00" oninput="calcIVA()"/></div>
     <div class="form-group"><label>Subtotal sin IVA / IVA 16%</label><div id="iva-preview" style="padding:10px 12px;background:var(--cream);border-radius:var(--r-sm);font-size:13px;color:var(--slate2)">${r.monto?`Subtotal: <strong>${fmt(r.monto/1.16)}</strong> · IVA: <strong style="color:var(--amber)">${fmt(r.monto-r.monto/1.16)}</strong>`:'Ingresa el monto'}</div></div></div>
     <div class="form-row"><div class="form-group"><label>Método de pago</label><select id="f-metodo"><option ${r.metodo_pago!=='Efectivo'?'selected':''}>Transferencia</option><option ${r.metodo_pago==='Efectivo'?'selected':''}>Efectivo</option></select></div>
     <div class="form-group"><label>Probabilidad de cobro</label><select id="f-prob">${['Alta','Media','Baja'].map(s=>`<option ${r.probabilidad_cobro===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
     <div class="form-row"><div class="form-group"><label>Fecha emisión</label><input id="f-emision" type="date" value="${r.fecha_emision||today()}"/></div>
     <div class="form-group"><label>Fecha vencimiento</label><input id="f-vence" type="date" value="${r.fecha_vencimiento||''}"/></div></div>
-    <div class="form-row"><div class="form-group"><label>Fecha de pago</label><input id="f-pago" type="date" value="${r.fecha_pago||''}" placeholder="Solo si ya fue cobrada"/></div>
+    <div class="form-row"><div class="form-group"><label>Fecha de pago</label><input id="f-pago" type="date" value="${r.fecha_pago||''}"/></div>
     <div class="form-group"><label>Estatus</label><select id="f-estatus">${['Emitida','Enviada','Parcial','Pagada','Vencida','Cancelada'].map(s=>`<option ${r.estatus===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
     <div class="form-row full"><div class="form-group"><label>Notas</label><textarea id="f-notas">${r.notas||''}</textarea></div></div>`;
   openModal(isEdit?'Editar Factura':'Nueva Factura', body, isEdit?'Guardar cambios':'Registrar', async()=>{
@@ -1289,6 +1296,71 @@ async function openCobrarModal(id=null) {
     if (err) { showToast('Error: '+err.message,'error'); return; }
     closeModal(); showToast(isEdit?'Factura actualizada ✓':'Factura registrada ✓'); renderFinanzas('cobrar');
   });
+}
+
+async function parseCFDI(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById('xml-status');
+  status.textContent = '⏳ Leyendo XML...';
+  status.style.color = 'var(--slate2)';
+  try {
+    const text = await file.text();
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text, 'application/xml');
+    // Soporte para namespace cfdi: y sin namespace
+    const ns = 'http://www.sat.gob.mx/cfd/4';
+    const nsV3 = 'http://www.sat.gob.mx/cfd/3';
+    const comp = xml.getElementsByTagNameNS(ns,'Comprobante')[0] ||
+                 xml.getElementsByTagNameNS(nsV3,'Comprobante')[0] ||
+                 xml.querySelector('Comprobante');
+    if (!comp) { status.textContent = '❌ No se encontró estructura CFDI válida'; status.style.color='var(--red)'; return; }
+
+    // Extraer datos
+    const receptor = xml.getElementsByTagNameNS(ns,'Receptor')[0] ||
+                     xml.getElementsByTagNameNS(nsV3,'Receptor')[0] ||
+                     xml.querySelector('Receptor');
+    const traslados = xml.getElementsByTagNameNS(ns,'Traslado') ||
+                      xml.getElementsByTagNameNS(nsV3,'Traslado') ||
+                      xml.querySelectorAll('Traslado');
+
+    const uuid = xml.querySelector('TimbreFiscalDigital')?.getAttribute('UUID') ||
+                 xml.getElementsByTagName('tfd:TimbreFiscalDigital')[0]?.getAttribute('UUID') || '';
+    const fecha = comp.getAttribute('Fecha')?.substring(0,10) || today();
+    const subtotal = parseFloat(comp.getAttribute('SubTotal')||0);
+    const total = parseFloat(comp.getAttribute('Total')||0);
+    const metodoPago = comp.getAttribute('MetodoPago')||'';
+    const rfcReceptor = receptor?.getAttribute('Rfc')||'';
+    const nombreReceptor = receptor?.getAttribute('Nombre')||'';
+
+    // Llenar formulario
+    document.getElementById('f-folio').value = uuid || comp.getAttribute('Folio')||'';
+    document.getElementById('f-emision').value = fecha;
+    document.getElementById('f-monto').value = total;
+    calcIVA();
+
+    // Método de pago
+    if (metodoPago === 'PUE') document.getElementById('f-metodo').value = 'Transferencia';
+
+    // Buscar cliente por RFC
+    const {data:clientes} = await db.from('clientes').select('id,nombre_empresa,rfc').ilike('rfc', rfcReceptor);
+    const clienteMatch = clientes?.find(c=>c.rfc?.toUpperCase()===rfcReceptor.toUpperCase());
+    if (clienteMatch) {
+      document.getElementById('f-cliente').value = clienteMatch.id;
+      status.innerHTML = `✅ CFDI leído · Cliente: <strong>${clienteMatch.nombre_empresa}</strong> · Total: <strong>${fmt(total)}</strong>`;
+    } else {
+      status.innerHTML = `✅ CFDI leído · RFC receptor: <strong>${rfcReceptor}</strong> (${nombreReceptor}) · Total: <strong>${fmt(total)}</strong><br><span style="color:var(--amber)">⚠️ Cliente no encontrado por RFC — selecciónalo manualmente</span>`;
+    }
+    status.style.color = 'var(--green)';
+
+    // Notas con datos del CFDI
+    const notasEl = document.getElementById('f-notas');
+    if (!notasEl.value) notasEl.value = `CFDI ${uuid} · RFC: ${rfcReceptor} · ${nombreReceptor}`;
+
+  } catch(e) {
+    status.textContent = '❌ Error al leer el XML: ' + e.message;
+    status.style.color = 'var(--red)';
+  }
 }
 
 function calcIVA() {
