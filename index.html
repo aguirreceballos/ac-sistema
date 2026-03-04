@@ -330,7 +330,7 @@ const NAV_ITEMS = [
   { id:'proyectos', label:'Proyectos', icon:'📁', roles:['socio_director','gerente_legal','gerente_contable','admin','operativo'] },
   { id:'tareas', label:'Tareas', icon:'✅', roles:['socio_director','gerente_legal','gerente_contable','admin','operativo'] },
   { id:'finanzas', label:'Finanzas', icon:'💰', roles:['socio_director','admin'] },
-  { id:'fiscal', label:'Fiscal / Impuestos', icon:'🧾', roles:['socio_director','admin','gerente_contable'] },
+  { id:'fiscal', label:'Fiscal / Impuestos', icon:'🧾', roles:['socio_director','admin'] },
   { id:'pipeline', label:'Pipeline', icon:'🎯', roles:['socio_director'] },
   { id:'marketing', label:'Marketing', icon:'📣', roles:['socio_director'] },
   { id:'talento', label:'Talento', icon:'👥', roles:['socio_director','admin'] },
@@ -1186,9 +1186,9 @@ async function renderFinanzas(tab='balance', mes='') {
     ${tab==='cobrar'?`
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Cliente</th><th>Folio</th><th>Subtotal</th><th>IVA 16%</th><th>Total</th><th>Método</th><th>Vencimiento</th><th>Días</th><th>Estatus</th><th></th></tr></thead>
+        <thead><tr><th>Cliente</th><th>Folio</th><th>Subtotal</th><th>IVA 16%</th><th>Total</th><th>Método</th><th>Emisión</th><th>Vencimiento</th><th>Fecha pago</th><th>Estatus</th><th></th></tr></thead>
         <tbody>
-          ${co.length===0?`<tr><td colspan="10"><div class="empty"><p>Sin facturas registradas</p></div></td></tr>`:''}
+          ${co.length===0?`<tr><td colspan="11"><div class="empty"><p>Sin facturas registradas</p></div></td></tr>`:''}
           ${co.map(r=>{
             const total = Number(r.monto||0);
             const subtotal = total/1.16;
@@ -1204,16 +1204,19 @@ async function renderFinanzas(tab='balance', mes='') {
               <td style="color:var(--amber)">${fmt(iva)}</td>
               <td><strong>${fmt(total)}</strong></td>
               <td><span class="badge badge-${r.metodo_pago==='Efectivo'?'green':'blue'}">${r.metodo_pago||'Transferencia'}</span></td>
-              <td>${fmtDate(r.fecha_vencimiento)}</td>
+              <td style="font-size:12px">${fmtDate(r.fecha_emision)}</td>
               <td style="font-weight:700;color:${dias===null?'inherit':dias>90?'var(--red)':dias>30?'var(--amber)':'var(--green)'}">
-                ${dias===null?'—':dias>0?`${dias}d venc.`:'Vigente'}
+                ${fmtDate(r.fecha_vencimiento)}${dias!==null&&dias>0&&r.estatus!=='Pagada'?` <span style="font-size:10px">(${dias}d)</span>`:''}
               </td>
+              <td style="color:var(--green);font-size:12px">${r.fecha_pago?fmtDate(r.fecha_pago):'—'}</td>
               <td>${badgeEstatus(r.estatus)}</td>
               <td>
+                <button class="btn btn-outline btn-sm" onclick="openCobrarModal('${r.id}')">✏️</button>
                 ${r.estatus!=='Pagada'?`<button class="btn btn-gold btn-sm" onclick="marcarPagadoMes('cuentas_cobrar','${r.id}','${mes}')">✓ Cobrado</button>`:''}
                 <button class="btn btn-danger btn-sm" onclick="deleteRecord('cuentas_cobrar','${r.id}',()=>renderFinanzas('cobrar','${mes}'))">🗑</button>
               </td>
             </tr>`;
+          }).join('')}
           }).join('')}
         </tbody>
       </table>
@@ -1244,20 +1247,27 @@ async function renderFinanzas(tab='balance', mes='') {
     </div>`:''}`;
 }
 
-async function openCobrarModal() {
+async function openCobrarModal(id=null) {
+  const isEdit = !!id;
   const {data:cl} = await db.from('clientes').select('id,nombre_empresa,email_contacto').eq('estatus','Activo').order('nombre_empresa');
+  let r = {};
+  if (isEdit) { const {data} = await db.from('cuentas_cobrar').select('*,clientes(nombre_empresa)').eq('id',id).single(); r = data||{}; }
   const body = `
-    <div class="form-row"><div class="form-group"><label>Cliente *</label><select id="f-cliente"><option value="">— Seleccionar —</option>${(cl||[]).map(c=>`<option value="${c.id}">${c.nombre_empresa}</option>`).join('')}</select></div>
-    <div class="form-group"><label>Folio factura</label><input id="f-folio" placeholder="FAC-2025-001"/></div></div>
-    <div class="form-row"><div class="form-group"><label>Monto total con IVA (MXN) *</label><input id="f-monto" type="number" placeholder="0.00" oninput="calcIVA()"/></div>
-    <div class="form-group"><label>Subtotal sin IVA / IVA 16%</label><div id="iva-preview" style="padding:10px 12px;background:var(--cream);border-radius:var(--r-sm);font-size:13px;color:var(--slate2)">Ingresa el monto</div></div></div>
-    <div class="form-row"><div class="form-group"><label>Método de pago</label><select id="f-metodo"><option>Transferencia</option><option>Efectivo</option></select></div>
-    <div class="form-group"><label>Probabilidad de cobro</label><select id="f-prob"><option>Alta</option><option>Media</option><option>Baja</option></select></div></div>
-    <div class="form-row"><div class="form-group"><label>Fecha emisión</label><input id="f-emision" type="date" value="${today()}"/></div>
-    <div class="form-group"><label>Fecha vencimiento</label><input id="f-vence" type="date"/></div></div>
-    <div class="form-row full"><div class="form-group"><label>Notas</label><textarea id="f-notas"></textarea></div></div>`;
-  openModal('Nueva Factura / Cuenta por Cobrar', body, 'Registrar', async()=>{
+    <div class="form-row"><div class="form-group"><label>Cliente *</label><select id="f-cliente"><option value="">— Seleccionar —</option>${(cl||[]).map(c=>`<option value="${c.id}" ${r.cliente_id===c.id?'selected':''}>${c.nombre_empresa}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Folio factura</label><input id="f-folio" value="${r.folio_factura||''}" placeholder="FAC-2025-001"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Monto total con IVA (MXN) *</label><input id="f-monto" type="number" value="${r.monto||''}" placeholder="0.00" oninput="calcIVA()"/></div>
+    <div class="form-group"><label>Subtotal sin IVA / IVA 16%</label><div id="iva-preview" style="padding:10px 12px;background:var(--cream);border-radius:var(--r-sm);font-size:13px;color:var(--slate2)">${r.monto?`Subtotal: <strong>${fmt(r.monto/1.16)}</strong> · IVA: <strong style="color:var(--amber)">${fmt(r.monto-r.monto/1.16)}</strong>`:'Ingresa el monto'}</div></div></div>
+    <div class="form-row"><div class="form-group"><label>Método de pago</label><select id="f-metodo"><option ${r.metodo_pago!=='Efectivo'?'selected':''}>Transferencia</option><option ${r.metodo_pago==='Efectivo'?'selected':''}>Efectivo</option></select></div>
+    <div class="form-group"><label>Probabilidad de cobro</label><select id="f-prob">${['Alta','Media','Baja'].map(s=>`<option ${r.probabilidad_cobro===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
+    <div class="form-row"><div class="form-group"><label>Fecha emisión</label><input id="f-emision" type="date" value="${r.fecha_emision||today()}"/></div>
+    <div class="form-group"><label>Fecha vencimiento</label><input id="f-vence" type="date" value="${r.fecha_vencimiento||''}"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Fecha de pago</label><input id="f-pago" type="date" value="${r.fecha_pago||''}" placeholder="Solo si ya fue cobrada"/></div>
+    <div class="form-group"><label>Estatus</label><select id="f-estatus">${['Emitida','Enviada','Parcial','Pagada','Vencida','Cancelada'].map(s=>`<option ${r.estatus===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
+    <div class="form-row full"><div class="form-group"><label>Notas</label><textarea id="f-notas">${r.notas||''}</textarea></div></div>`;
+  openModal(isEdit?'Editar Factura':'Nueva Factura', body, isEdit?'Guardar cambios':'Registrar', async()=>{
     const monto = parseFloat(document.getElementById('f-monto').value);
+    const fechaPago = document.getElementById('f-pago').value||null;
+    const estatus = document.getElementById('f-estatus').value;
     const payload = {
       cliente_id: document.getElementById('f-cliente').value||null,
       folio_factura: document.getElementById('f-folio').value,
@@ -1268,13 +1278,16 @@ async function openCobrarModal() {
       probabilidad_cobro: document.getElementById('f-prob').value,
       fecha_emision: document.getElementById('f-emision').value||null,
       fecha_vencimiento: document.getElementById('f-vence').value||null,
+      fecha_pago: fechaPago,
       notas: document.getElementById('f-notas').value,
-      estatus: 'Emitida',
+      estatus: fechaPago ? 'Pagada' : estatus,
     };
     if (!payload.monto) { showToast('El monto es obligatorio','error'); return; }
-    const {error} = await db.from('cuentas_cobrar').insert(payload);
-    if (error) { showToast('Error: '+error.message,'error'); return; }
-    closeModal(); showToast('Factura registrada'); renderFinanzas('cobrar');
+    let err;
+    if (isEdit) { ({error:err} = await db.from('cuentas_cobrar').update(payload).eq('id',id)); }
+    else { ({error:err} = await db.from('cuentas_cobrar').insert(payload)); }
+    if (err) { showToast('Error: '+err.message,'error'); return; }
+    closeModal(); showToast(isEdit?'Factura actualizada ✓':'Factura registrada ✓'); renderFinanzas('cobrar');
   });
 }
 
