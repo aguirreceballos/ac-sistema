@@ -330,6 +330,7 @@ const NAV_ITEMS = [
   { id:'proyectos', label:'Proyectos', icon:'📁', roles:['socio_director','gerente_legal','gerente_contable','admin','operativo'] },
   { id:'tareas', label:'Tareas', icon:'✅', roles:['socio_director','gerente_legal','gerente_contable','admin','operativo'] },
   { id:'finanzas', label:'Finanzas', icon:'💰', roles:['socio_director','admin'] },
+  { id:'fiscal', label:'Fiscal / Impuestos', icon:'🧾', roles:['socio_director','admin','gerente_contable'] },
   { id:'pipeline', label:'Pipeline', icon:'🎯', roles:['socio_director'] },
   { id:'marketing', label:'Marketing', icon:'📣', roles:['socio_director'] },
   { id:'talento', label:'Talento', icon:'👥', roles:['socio_director','admin'] },
@@ -368,12 +369,12 @@ function navigate(page) {
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   const btn = document.getElementById('nav-' + page);
   if (btn) btn.classList.add('active');
-  const titles = {dashboard:'Dashboard Ejecutivo',clientes:'Clientes',proyectos:'Proyectos',tareas:'Tareas Operativas',finanzas:'Finanzas',pipeline:'Pipeline de Ventas',marketing:'Marketing & Contenido',talento:'Talento',usuarios:'Gestión de Usuarios'};
+  const titles = {dashboard:'Dashboard Ejecutivo',clientes:'Clientes',proyectos:'Proyectos',tareas:'Tareas Operativas',finanzas:'Finanzas',fiscal:'Fiscal / Impuestos',pipeline:'Pipeline de Ventas',marketing:'Marketing & Contenido',talento:'Talento',usuarios:'Gestión de Usuarios'};
   document.getElementById('page-title').textContent = titles[page] || page;
   document.getElementById('topbar-actions').innerHTML = '';
   const content = document.getElementById('page-content');
   content.innerHTML = '<div class="loading"><div class="spinner"></div>Cargando...</div>';
-  const pages = {dashboard:pageDashboard,clientes:pageClientes,proyectos:pageProyectos,tareas:pageTareas,finanzas:pageFinanzas,pipeline:pagePipeline,marketing:pageMarketing,talento:pageTalento,usuarios:pageUsuarios};
+  const pages = {dashboard:pageDashboard,clientes:pageClientes,proyectos:pageProyectos,tareas:pageTareas,finanzas:pageFinanzas,fiscal:pageFiscal,pipeline:pagePipeline,marketing:pageMarketing,talento:pageTalento,usuarios:pageUsuarios};
   if (pages[page]) pages[page]();
 }
 
@@ -1664,8 +1665,272 @@ async function toggleUsuario(id, activar) {
 }
 
 // ============================================================
-// EXCEL EXPORTS
+// FISCAL / IMPUESTOS
 // ============================================================
+async function pageFiscal() {
+  document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn btn-outline" onclick="exportFiscalExcel()">⬇️ Excel</button>
+    <button class="btn btn-gold" onclick="openRetencionModal()">＋ Retención honorarios</button>`;
+  await renderFiscal();
+}
+
+async function renderFiscal(mes='') {
+  if (!mes) mes = mesActual();
+  const ejercicio = mes.substring(0,4);
+  const content = document.getElementById('page-content');
+
+  // Traer todos los datos del ejercicio
+  const [cobRes, pagRes, retRes] = await Promise.all([
+    db.from('cuentas_cobrar').select('*').eq('estatus','Pagada').gte('fecha_emision', `${ejercicio}-01-01`).lte('fecha_emision', `${ejercicio}-12-31`),
+    db.from('cuentas_pagar').select('*').eq('estatus','Pagada').gte('fecha_vencimiento', `${ejercicio}-01-01`).lte('fecha_vencimiento', `${ejercicio}-12-31`),
+    db.from('retenciones').select('*').gte('fecha', `${ejercicio}-01-01`).lte('fecha', `${ejercicio}-12-31`).order('fecha'),
+  ]);
+  const cobTodos = cobRes.data||[], paTodos = pagRes.data||[], retTodos = retRes.data||[];
+
+  // Acumulados hasta el mes seleccionado (inclusive) para ISR
+  const mesNum = parseInt(mes.substring(5,7));
+  const coAcum = cobTodos.filter(r=>parseInt(r.fecha_emision?.substring(5,7)||0)<=mesNum);
+  const paAcum = paTodos.filter(r=>parseInt(r.fecha_vencimiento?.substring(5,7)||0)<=mesNum);
+  const retAcum = retTodos.filter(r=>parseInt(r.fecha?.substring(5,7)||0)<=mesNum);
+
+  // ISR provisional acumulado (régimen general PM sin coeficiente)
+  const ingAcum = coAcum.reduce((s,r)=>s+Number(r.monto||0)/1.16, 0);
+  const dedAcum = paAcum.reduce((s,r)=>s+Number(r.monto||0), 0);
+  const utilFiscal = Math.max(0, ingAcum - dedAcum);
+  const isrCausado = utilFiscal * 0.30;
+  // ISR pagado en meses anteriores (suma de pagos_anteriores en retenciones tipo ISR_PM)
+  const isrPagadoAnt = retTodos.filter(r=>r.tipo==='ISR_PM'&&parseInt(r.fecha?.substring(5,7)||0)<mesNum).reduce((s,r)=>s+Number(r.monto_impuesto||0),0);
+  const isrAPagar = Math.max(0, isrCausado - isrPagadoAnt);
+
+  // IVA del mes seleccionado
+  const coMes = cobTodos.filter(r=>enMes(r.fecha_emision, mes));
+  const paMes = paTodos.filter(r=>enMes(r.fecha_vencimiento, mes));
+  const retMes = retTodos.filter(r=>enMes(r.fecha, mes));
+  const ivaTrasladado = coMes.reduce((s,r)=>s+(Number(r.monto||0)-Number(r.monto||0)/1.16), 0);
+  const ivaAcreditable = paMes.reduce((s,r)=>s+Number(r.monto||0)*0.16, 0); // asume gastos con IVA
+  const ivaRetenidoCobrado = retMes.filter(r=>r.tipo==='honorarios').reduce((s,r)=>s+Number(r.iva_retenido||0),0);
+  const ivaAPagar = Math.max(0, ivaTrasladado - ivaAcreditable - ivaRetenidoCobrado);
+  const ivaFavor = ivaTrasladado - ivaAcreditable - ivaRetenidoCobrado < 0 ? Math.abs(ivaTrasladado - ivaAcreditable - ivaRetenidoCobrado) : 0;
+
+  // Retenciones del mes
+  const isrRetenidoMes = retMes.filter(r=>r.tipo==='honorarios').reduce((s,r)=>s+Number(r.isr_retenido||0),0);
+
+  // Selector de mes
+  const meses = [];
+  for (let i=0;i<12;i++) {
+    const d = new Date(parseInt(ejercicio),11-i,1);
+    const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    meses.push(ym);
+  }
+
+  content.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <select class="filter-select" onchange="renderFiscal(this.value)">
+        ${meses.map(m=>`<option value="${m}" ${mes===m?'selected':''}>${mesLabel(m)}</option>`).join('')}
+      </select>
+      <span style="font-size:13px;color:var(--slate2)">Ejercicio ${ejercicio} · Régimen General PM · Nueva creación (sin coeficiente)</span>
+    </div>
+
+    <!-- RESUMEN IMPUESTOS DEL MES -->
+    <div class="grid-4" style="margin-bottom:20px">
+      <div class="stat-card" style="border-top:3px solid var(--amber)">
+        <div class="stat-label">IVA a pagar</div>
+        <div class="stat-value" style="color:var(--amber);font-size:20px">${fmt(ivaAPagar)}</div>
+        <div class="stat-sub">Declaración mensual</div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid ${ivaFavor>0?'var(--green)':'var(--slate2)'}">
+        <div class="stat-label">IVA a favor</div>
+        <div class="stat-value" style="color:${ivaFavor>0?'var(--green)':'var(--slate2)'};font-size:20px">${fmt(ivaFavor)}</div>
+        <div class="stat-sub">Saldo a favor acreditables</div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid var(--blue)">
+        <div class="stat-label">ISR provisional acumulado</div>
+        <div class="stat-value" style="color:var(--blue);font-size:20px">${fmt(isrAPagar)}</div>
+        <div class="stat-sub">Pago provisional del mes</div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid var(--purple)">
+        <div class="stat-label">ISR retenido honorarios</div>
+        <div class="stat-value" style="color:var(--purple);font-size:20px">${fmt(isrRetenidoMes)}</div>
+        <div class="stat-sub">Enterar al SAT este mes</div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:20px">
+      <!-- IVA DETALLE -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">🟡 IVA Mensual — ${mesLabel(mes)}</span></div>
+        <div class="card-body">
+          <table>
+            <tbody>
+              <tr><td style="color:var(--slate2)">IVA trasladado (cobrado)</td><td style="text-align:right;font-weight:700;color:var(--green)">${fmt(ivaTrasladado)}</td></tr>
+              <tr><td style="color:var(--slate2)">IVA acreditable (gastos pagados)</td><td style="text-align:right;font-weight:700;color:var(--red)">− ${fmt(ivaAcreditable)}</td></tr>
+              <tr><td style="color:var(--slate2)">IVA retenido a honorarios</td><td style="text-align:right;font-weight:700;color:var(--red)">− ${fmt(ivaRetenidoCobrado)}</td></tr>
+              <tr style="border-top:2px solid var(--border)">
+                <td><strong>${ivaAPagar>0?'IVA a pagar SAT':'IVA a favor'}</strong></td>
+                <td style="text-align:right;font-size:18px;font-weight:700;color:${ivaAPagar>0?'var(--amber)':'var(--green)'}">
+                  ${fmt(ivaAPagar>0?ivaAPagar:ivaFavor)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="margin-top:12px;padding:10px 12px;background:var(--amber2);border-radius:var(--r-sm);font-size:12px;color:var(--amber)">
+            ⚠️ IVA acreditable calculado al 16% sobre gastos registrados. Verifica que tus proveedores te hayan expedido CFDI.
+          </div>
+        </div>
+      </div>
+
+      <!-- ISR DETALLE -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">🔵 ISR Provisional Acumulado — ${ejercicio}</span></div>
+        <div class="card-body">
+          <table>
+            <tbody>
+              <tr><td style="color:var(--slate2)">Ingresos acumulados (sin IVA)</td><td style="text-align:right;font-weight:700;color:var(--green)">${fmt(ingAcum)}</td></tr>
+              <tr><td style="color:var(--slate2)">Deducciones autorizadas</td><td style="text-align:right;font-weight:700;color:var(--red)">− ${fmt(dedAcum)}</td></tr>
+              <tr><td style="color:var(--slate2)">Utilidad fiscal acumulada</td><td style="text-align:right;font-weight:700">${fmt(utilFiscal)}</td></tr>
+              <tr><td style="color:var(--slate2)">Tasa ISR PM</td><td style="text-align:right;font-weight:700">30%</td></tr>
+              <tr><td style="color:var(--slate2)">ISR causado</td><td style="text-align:right;font-weight:700">${fmt(isrCausado)}</td></tr>
+              <tr><td style="color:var(--slate2)">Pagos provisionales anteriores</td><td style="text-align:right;font-weight:700;color:var(--red)">− ${fmt(isrPagadoAnt)}</td></tr>
+              <tr style="border-top:2px solid var(--border)">
+                <td><strong>ISR a pagar este mes</strong></td>
+                <td style="text-align:right;font-size:18px;font-weight:700;color:var(--blue)">${fmt(isrAPagar)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="margin-top:12px;padding:10px 12px;background:var(--blue2);border-radius:var(--r-sm);font-size:12px;color:var(--blue)">
+            ℹ️ SC nueva creación sin coeficiente. Pago provisional calculado sobre utilidad real acumulada del ejercicio ${ejercicio}.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RETENCIONES -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🟣 Retenciones Honorarios — ${mesLabel(mes)}</span>
+        <button class="btn btn-gold btn-sm" onclick="openRetencionModal()">＋ Agregar</button>
+      </div>
+      <div class="card-body" style="padding:0">
+        ${retMes.filter(r=>r.tipo==='honorarios').length===0
+          ? '<div class="empty"><p>Sin retenciones registradas este mes</p></div>'
+          : `<table>
+              <thead><tr><th>Prestador</th><th>RFC</th><th>Concepto</th><th>Monto honorario</th><th>ISR retenido 10%</th><th>IVA retenido 10.67%</th><th>Fecha</th><th></th></tr></thead>
+              <tbody>
+                ${retMes.filter(r=>r.tipo==='honorarios').map(r=>`<tr>
+                  <td><strong>${r.prestador||'—'}</strong></td>
+                  <td style="font-family:'DM Mono',monospace;font-size:12px">${r.rfc||'—'}</td>
+                  <td>${r.concepto||'—'}</td>
+                  <td>${fmt(r.monto_honorario)}</td>
+                  <td style="color:var(--purple);font-weight:700">${fmt(r.isr_retenido)}</td>
+                  <td style="color:var(--amber);font-weight:700">${fmt(r.iva_retenido)}</td>
+                  <td>${fmtDate(r.fecha)}</td>
+                  <td><button class="btn btn-danger btn-sm" onclick="deleteRecord('retenciones','${r.id}',()=>renderFiscal('${mes}'))">🗑</button></td>
+                </tr>`).join('')}
+                <tr style="background:var(--cream2);font-weight:700">
+                  <td colspan="4">Totales del mes</td>
+                  <td style="color:var(--purple)">${fmt(retMes.filter(r=>r.tipo==='honorarios').reduce((s,r)=>s+Number(r.isr_retenido||0),0))}</td>
+                  <td style="color:var(--amber)">${fmt(retMes.filter(r=>r.tipo==='honorarios').reduce((s,r)=>s+Number(r.iva_retenido||0),0))}</td>
+                  <td colspan="2"></td>
+                </tr>
+              </tbody>
+            </table>`}
+      </div>
+    </div>`;
+}
+
+async function openRetencionModal() {
+  const mes = mesActual();
+  const body = `
+    <div class="form-row"><div class="form-group"><label>Nombre del prestador *</label><input id="f-prest" placeholder="Juan García"/></div>
+    <div class="form-group"><label>RFC del prestador</label><input id="f-rfc" placeholder="GACJ800101XXX"/></div></div>
+    <div class="form-group"><label>Concepto</label><input id="f-conc" placeholder="Honorarios por servicios contables"/></div>
+    <div class="form-row"><div class="form-group"><label>Monto honorario (sin IVA) *</label><input id="f-monto" type="number" placeholder="0.00" oninput="calcRetenciones()"/></div>
+    <div class="form-group"><label>Fecha *</label><input id="f-fecha" type="date" value="${today()}"/></div></div>
+    <div id="ret-preview" style="display:none;background:var(--cream2);border-radius:var(--r);padding:16px;margin-top:8px">
+      <div style="font-size:12px;font-weight:700;color:var(--slate);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Cálculo automático de retenciones</div>
+      <table style="width:100%">
+        <tr><td style="color:var(--slate2);font-size:13px">Subtotal honorario</td><td style="text-align:right;font-weight:700" id="r-sub">—</td></tr>
+        <tr><td style="color:var(--slate2);font-size:13px">IVA 16% (trasladado)</td><td style="text-align:right;font-weight:700;color:var(--amber)" id="r-iva">—</td></tr>
+        <tr><td style="color:var(--slate2);font-size:13px">ISR retenido 10%</td><td style="text-align:right;font-weight:700;color:var(--purple)" id="r-isr">—</td></tr>
+        <tr><td style="color:var(--slate2);font-size:13px">IVA retenido 10.67% (2/3 del IVA)</td><td style="text-align:right;font-weight:700;color:var(--amber)" id="r-ivar">—</td></tr>
+        <tr style="border-top:1px solid var(--border)"><td style="font-weight:700;font-size:13px">Neto a pagar al prestador</td><td style="text-align:right;font-weight:700;color:var(--green);font-size:16px" id="r-neto">—</td></tr>
+      </table>
+    </div>`;
+  openModal('Nueva Retención — Honorarios P.F.', body, 'Registrar', async()=>{
+    const monto = parseFloat(document.getElementById('f-monto').value)||0;
+    if (!monto) { showToast('El monto es obligatorio','error'); return; }
+    const iva = monto * 0.16;
+    const isrRet = monto * 0.10;
+    const ivaRet = monto * 0.1067;
+    const neto = monto + iva - isrRet - ivaRet;
+    const payload = {
+      tipo: 'honorarios',
+      prestador: document.getElementById('f-prest').value,
+      rfc: document.getElementById('f-rfc').value,
+      concepto: document.getElementById('f-conc').value,
+      monto_honorario: monto,
+      iva_trasladado: iva,
+      isr_retenido: isrRet,
+      iva_retenido: ivaRet,
+      neto_pagado: neto,
+      fecha: document.getElementById('f-fecha').value||today(),
+    };
+    if (!payload.prestador) { showToast('El nombre del prestador es obligatorio','error'); return; }
+    const {error} = await db.from('retenciones').insert(payload);
+    if (error) { showToast('Error: '+error.message,'error'); return; }
+    closeModal(); showToast('Retención registrada ✓'); renderFiscal(mes);
+  });
+}
+
+function calcRetenciones() {
+  const monto = parseFloat(document.getElementById('f-monto').value)||0;
+  if (!monto) { document.getElementById('ret-preview').style.display='none'; return; }
+  document.getElementById('ret-preview').style.display='block';
+  const iva = monto*0.16, isrRet = monto*0.10, ivaRet = monto*0.1067, neto = monto+iva-isrRet-ivaRet;
+  document.getElementById('r-sub').textContent = fmt(monto);
+  document.getElementById('r-iva').textContent = fmt(iva);
+  document.getElementById('r-isr').textContent = '− '+fmt(isrRet);
+  document.getElementById('r-ivar').textContent = '− '+fmt(ivaRet);
+  document.getElementById('r-neto').textContent = fmt(neto);
+}
+
+async function exportFiscalExcel() {
+  const mes = mesActual();
+  const ejercicio = mes.substring(0,4);
+  const [cobRes, pagRes, retRes] = await Promise.all([
+    db.from('cuentas_cobrar').select('*').eq('estatus','Pagada').gte('fecha_emision',`${ejercicio}-01-01`).lte('fecha_emision',`${ejercicio}-12-31`),
+    db.from('cuentas_pagar').select('*').eq('estatus','Pagada').gte('fecha_vencimiento',`${ejercicio}-01-01`).lte('fecha_vencimiento',`${ejercicio}-12-31`),
+    db.from('retenciones').select('*').gte('fecha',`${ejercicio}-01-01`).order('fecha'),
+  ]);
+  const wb = XLSX.utils.book_new();
+  // Hoja retenciones
+  const retRows = (retRes.data||[]).map(r=>({
+    'Fecha':r.fecha,'Prestador':r.prestador,'RFC':r.rfc,'Concepto':r.concepto,
+    'Honorario':r.monto_honorario,'IVA trasladado':r.iva_trasladado,
+    'ISR retenido':r.isr_retenido,'IVA retenido':r.iva_retenido,'Neto pagado':r.neto_pagado
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(retRows.length?retRows:[{Nota:'Sin retenciones'}]), 'Retenciones');
+  // Hoja resumen por mes
+  const resumen = [];
+  for (let m=1;m<=12;m++) {
+    const ym = `${ejercicio}-${String(m).padStart(2,'0')}`;
+    const co = (cobRes.data||[]).filter(r=>enMes(r.fecha_emision,ym));
+    const pa = (pagRes.data||[]).filter(r=>enMes(r.fecha_vencimiento,ym));
+    const ret = (retRes.data||[]).filter(r=>enMes(r.fecha,ym)&&r.tipo==='honorarios');
+    const ing = co.reduce((s,r)=>s+Number(r.monto||0)/1.16,0);
+    const ded = pa.reduce((s,r)=>s+Number(r.monto||0),0);
+    const ivaTr = co.reduce((s,r)=>s+(Number(r.monto||0)-Number(r.monto||0)/1.16),0);
+    const ivaAc = pa.reduce((s,r)=>s+Number(r.monto||0)*0.16,0);
+    const ivaRet = ret.reduce((s,r)=>s+Number(r.iva_retenido||0),0);
+    const isrRet = ret.reduce((s,r)=>s+Number(r.isr_retenido||0),0);
+    resumen.push({'Mes':mesLabel(ym),'Ingresos netos':Math.round(ing*100)/100,'Deducciones':ded,'Utilidad':Math.round((ing-ded)*100)/100,'IVA trasladado':Math.round(ivaTr*100)/100,'IVA acreditable':Math.round(ivaAc*100)/100,'IVA retenido':ivaRet,'IVA neto':Math.round((ivaTr-ivaAc-ivaRet)*100)/100,'ISR retenido honorarios':isrRet});
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumen), 'Resumen Fiscal');
+  XLSX.writeFile(wb, `AC_Fiscal_${ejercicio}.xlsx`);
+  showToast('Excel fiscal descargado ✓');
+}
+
+
 function exportToExcel(data, sheetName, fileName) {
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
