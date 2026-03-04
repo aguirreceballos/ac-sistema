@@ -1119,26 +1119,35 @@ async function renderFinanzas(tab='balance', mes='') {
 
     ${tab==='balance'?`
     <div class="grid-4" style="margin-bottom:20px">
-      <div class="stat-card" style="border-top:3px solid var(--green)">
-        <div class="stat-label">Ingresos netos cobrados</div>
+      <div class="stat-card" style="border-top:3px solid var(--green);cursor:pointer" onclick="renderFinanzas('cobrar','${mes}')" title="Ver facturas cobradas">
+        <div class="stat-label">Ingresos netos cobrados <span style="font-size:10px;color:var(--green)">▶ ver</span></div>
         <div class="stat-value" style="color:var(--green);font-size:20px">${fmt(ingresosNetos)}</div>
         <div class="stat-sub">Sin IVA · ${cobradas.length} facturas cobradas</div>
       </div>
-      <div class="stat-card" style="border-top:3px solid var(--red)">
-        <div class="stat-label">Gastos pagados</div>
+      <div class="stat-card" style="border-top:3px solid var(--red);cursor:pointer" onclick="renderFinanzas('pagar','${mes}')" title="Ver gastos pagados">
+        <div class="stat-label">Gastos pagados <span style="font-size:10px;color:var(--red)">▶ ver</span></div>
         <div class="stat-value" style="color:var(--red);font-size:20px">${fmt(gastosPagados)}</div>
         <div class="stat-sub">${pa.filter(r=>r.estatus==='Pagada').length} pagos realizados</div>
       </div>
       <div class="stat-card" style="border-top:3px solid ${utilidad>=0?'var(--gold)':'var(--red)'}">
         <div class="stat-label">Utilidad del período</div>
         <div class="stat-value" style="color:${utilidad>=0?'var(--gold)':'var(--red)'};font-size:20px">${fmt(utilidad)}</div>
-        <div class="stat-sub">${utilidad>=0?'✅ Positivo':'⚠️ Negativo'}</div>
+        <div class="stat-sub">${utilidad>=0?'✅ Positivo':'⚠️ Negativo'} · Ingresos − Gastos</div>
       </div>
-      <div class="stat-card" style="border-top:3px solid var(--amber)">
-        <div class="stat-label">IVA trasladado (SAT)</div>
+      <div class="stat-card" style="border-top:3px solid var(--amber);cursor:pointer" onclick="toggleIVADetalle()" title="Ver detalle IVA">
+        <div class="stat-label">IVA trasladado (SAT) <span style="font-size:10px;color:var(--amber)">▶ detalle</span></div>
         <div class="stat-value" style="color:var(--amber);font-size:20px">${fmt(ivaTrasladadoCobrado)}</div>
         <div class="stat-sub">Pasivo · No es ingreso tuyo</div>
       </div>
+    </div>
+    <div id="iva-detalle" style="display:none;background:var(--amber2);border:1px solid var(--amber3);border-radius:var(--r);padding:16px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Desglose IVA del período</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center">
+        <div><div style="font-size:11px;color:var(--slate2)">IVA trasladado cobrado</div><div style="font-size:18px;font-weight:700;color:var(--amber)">${fmt(ivaTrasladadoCobrado)}</div></div>
+        <div><div style="font-size:11px;color:var(--slate2)">IVA de gastos pagados (acreditable est.)</div><div style="font-size:18px;font-weight:700;color:var(--red)">− ${fmt(gastosPagados*0.16)}</div></div>
+        <div><div style="font-size:11px;color:var(--slate2)">IVA neto estimado a enterar SAT</div><div style="font-size:18px;font-weight:700;color:var(--amber)">${fmt(Math.max(0,ivaTrasladadoCobrado-gastosPagados*0.16))}</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--slate2);margin-top:8px">⚠️ Estimado. Para cálculo exacto ve al módulo Fiscal / Impuestos.</div>
     </div>
     <div class="grid-2" style="margin-bottom:20px">
       <div class="card">
@@ -1212,11 +1221,10 @@ async function renderFinanzas(tab='balance', mes='') {
               <td>${badgeEstatus(r.estatus)}</td>
               <td>
                 <button class="btn btn-outline btn-sm" onclick="openCobrarModal('${r.id}')">✏️</button>
-                ${r.estatus!=='Pagada'?`<button class="btn btn-gold btn-sm" onclick="marcarPagadoMes('cuentas_cobrar','${r.id}','${mes}')">✓ Cobrado</button>`:''}
+                ${r.estatus!=='Pagada'?`<button class="btn btn-gold btn-sm" onclick="marcarPagadoMes('cuentas_cobrar','${r.id}','${mes}','cobrar')">✓ Cobrado</button>`:''}
                 <button class="btn btn-danger btn-sm" onclick="deleteRecord('cuentas_cobrar','${r.id}',()=>renderFinanzas('cobrar','${mes}'))">🗑</button>
               </td>
             </tr>`;
-          }).join('')}
           }).join('')}
         </tbody>
       </table>
@@ -1238,7 +1246,7 @@ async function renderFinanzas(tab='balance', mes='') {
             <td>${r.impacto_operativo?`<span class="badge badge-${r.impacto_operativo==='Crítico'?'red':r.impacto_operativo==='Alto'?'amber':'gray'}">${r.impacto_operativo}</span>`:'—'}</td>
             <td>${badgeEstatus(r.estatus)}</td>
             <td>
-              ${r.estatus!=='Pagada'?`<button class="btn btn-gold btn-sm" onclick="marcarPagadoMes('cuentas_pagar','${r.id}','${mes}')">✓ Pagado</button>`:''}
+              ${r.estatus!=='Pagada'?`<button class="btn btn-gold btn-sm" onclick="marcarPagadoMes('cuentas_pagar','${r.id}','${mes}','pagar')">✓ Pagado</button>`:''}
               <button class="btn btn-danger btn-sm" onclick="deleteRecord('cuentas_pagar','${r.id}',()=>renderFinanzas('pagar','${mes}'))">🗑</button>
             </td>
           </tr>`).join('')}
@@ -1397,10 +1405,10 @@ async function openPagarModal() {
   });
 }
 
-async function marcarPagadoMes(tabla, id, mes) {
+async function marcarPagadoMes(tabla, id, mes, tab='cobrar') {
   const {error} = await db.from(tabla).update({estatus:'Pagada'}).eq('id',id);
   if (error) { showToast('Error: '+error.message,'error'); return; }
-  showToast('Marcado como pagado ✓'); renderFinanzas('balance', mes);
+  showToast('Marcado como pagado ✓'); renderFinanzas(tab, mes);
 }
 
 async function marcarPagado(tabla, id, cb) {
@@ -2015,6 +2023,11 @@ async function exportFiscalExcel() {
   showToast('Excel fiscal descargado ✓');
 }
 
+
+function toggleIVADetalle() {
+  const el = document.getElementById('iva-detalle');
+  if (el) el.style.display = el.style.display==='none' ? 'block' : 'none';
+}
 
 function exportToExcel(data, sheetName, fileName) {
   const ws = XLSX.utils.json_to_sheet(data);
