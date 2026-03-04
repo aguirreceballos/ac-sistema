@@ -332,6 +332,7 @@ const NAV_ITEMS = [
   { id:'pipeline', label:'Pipeline', icon:'🎯', roles:['socio_director'] },
   { id:'marketing', label:'Marketing', icon:'📣', roles:['socio_director'] },
   { id:'talento', label:'Talento', icon:'👥', roles:['socio_director','admin'] },
+  { id:'usuarios', label:'Usuarios', icon:'⚙️', roles:['socio_director'] },
 ];
 
 function initApp() {
@@ -365,12 +366,12 @@ function navigate(page) {
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   const btn = document.getElementById('nav-' + page);
   if (btn) btn.classList.add('active');
-  const titles = {dashboard:'Dashboard Ejecutivo',clientes:'Clientes',proyectos:'Proyectos',tareas:'Tareas Operativas',finanzas:'Finanzas',pipeline:'Pipeline de Ventas',marketing:'Marketing & Contenido',talento:'Talento'};
+  const titles = {dashboard:'Dashboard Ejecutivo',clientes:'Clientes',proyectos:'Proyectos',tareas:'Tareas Operativas',finanzas:'Finanzas',pipeline:'Pipeline de Ventas',marketing:'Marketing & Contenido',talento:'Talento',usuarios:'Gestión de Usuarios'};
   document.getElementById('page-title').textContent = titles[page] || page;
   document.getElementById('topbar-actions').innerHTML = '';
   const content = document.getElementById('page-content');
   content.innerHTML = '<div class="loading"><div class="spinner"></div>Cargando...</div>';
-  const pages = {dashboard:pageDashboard,clientes:pageClientes,proyectos:pageProyectos,tareas:pageTareas,finanzas:pageFinanzas,pipeline:pagePipeline,marketing:pageMarketing,talento:pageTalento};
+  const pages = {dashboard:pageDashboard,clientes:pageClientes,proyectos:pageProyectos,tareas:pageTareas,finanzas:pageFinanzas,pipeline:pagePipeline,marketing:pageMarketing,talento:pageTalento,usuarios:pageUsuarios};
   if (pages[page]) pages[page]();
 }
 
@@ -1429,6 +1430,101 @@ async function openTalentoModal() {
     if (error) { showToast('Error: '+error.message,'error'); return; }
     closeModal(); showToast('Evaluación registrada'); renderTalento();
   });
+}
+
+// ============================================================
+// USUARIOS
+// ============================================================
+async function pageUsuarios() {
+  document.getElementById('topbar-actions').innerHTML = `<button class="btn btn-gold" onclick="openUsuarioModal()">＋ Nuevo usuario</button>`;
+  await renderUsuarios();
+}
+
+async function renderUsuarios() {
+  const content = document.getElementById('page-content');
+  const {data: usuarios} = await db.from('usuarios').select('*').order('nombre');
+  const us = usuarios||[];
+  content.innerHTML = `
+    <div class="grid-4" style="margin-bottom:18px">
+      <div class="stat-card"><div class="stat-label">Total usuarios</div><div class="stat-value">${us.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Activos</div><div class="stat-value" style="color:var(--green)">${us.filter(u=>u.activo!==false).length}</div></div>
+      <div class="stat-card"><div class="stat-label">Inactivos</div><div class="stat-value" style="color:var(--red)">${us.filter(u=>u.activo===false).length}</div></div>
+      <div class="stat-card"><div class="stat-label">Roles</div><div class="stat-value">${[...new Set(us.map(u=>u.rol))].length}</div></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Contraseña</th><th>Estatus</th><th></th></tr></thead>
+        <tbody>
+          ${us.length===0?`<tr><td colspan="6"><div class="empty"><p>No hay usuarios</p></div></td></tr>`:''}
+          ${us.map(u=>`<tr>
+            <td><strong>${u.nombre}</strong></td>
+            <td style="font-size:13px;color:var(--blue)">${u.email}</td>
+            <td>${badgeRol(u.rol)}</td>
+            <td><span style="font-family:'DM Mono',monospace;font-size:12px;background:var(--cream2);padding:4px 8px;border-radius:4px">••••••••</span></td>
+            <td>${u.activo===false?'<span class="badge badge-red">Inactivo</span>':'<span class="badge badge-green">Activo</span>'}</td>
+            <td>
+              <button class="btn btn-outline btn-sm" onclick="openUsuarioModal('${u.id}')">✏️ Editar</button>
+              <button class="btn btn-${u.activo===false?'gold':'danger'} btn-sm" onclick="toggleUsuario('${u.id}',${u.activo===false})">
+                ${u.activo===false?'✓ Activar':'⊘ Desactivar'}
+              </button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function badgeRol(rol) {
+  const map = {
+    'socio_director':'<span class="badge" style="background:#fdf6e3;color:#b7791f;border:1px solid #fbd38d">Socio Director</span>',
+    'admin':'<span class="badge badge-blue">Admin</span>',
+    'operativo':'<span class="badge badge-gray">Operativo</span>',
+    'gerente_legal':'<span class="badge badge-purple">Gerente Legal</span>',
+    'gerente_contable':'<span class="badge badge-green">Gerente Contable</span>',
+  };
+  return map[rol]||`<span class="badge badge-gray">${rol}</span>`;
+}
+
+async function openUsuarioModal(id=null) {
+  const isEdit = !!id;
+  let u = {};
+  if (isEdit) { const {data} = await db.from('usuarios').select('*').eq('id',id).single(); u = data||{}; }
+  const body = `
+    <div class="form-row"><div class="form-group"><label>Nombre completo *</label><input id="f-nombre" value="${u.nombre||''}"/></div>
+    <div class="form-group"><label>Email *</label><input id="f-email" type="email" value="${u.email||''}" placeholder="nombre@aguirreceballos.com"/></div></div>
+    <div class="form-row"><div class="form-group"><label>Rol</label><select id="f-rol">
+      ${['socio_director','admin','operativo','gerente_legal','gerente_contable'].map(r=>`<option value="${r}" ${u.rol===r?'selected':''}>${r}</option>`).join('')}
+    </select></div>
+    <div class="form-group"><label>${isEdit?'Nueva contraseña (vacío = sin cambio)':'Contraseña *'}</label>
+    <input id="f-pass" type="text" placeholder="${isEdit?'Nueva contraseña...':'Contraseña inicial'}"/></div></div>
+    <div class="form-row full"><div class="form-group"><label>Estatus</label><select id="f-activo">
+      <option value="true" ${u.activo!==false?'selected':''}>Activo</option>
+      <option value="false" ${u.activo===false?'selected':''}>Inactivo</option>
+    </select></div></div>`;
+  openModal(isEdit?`Editar: ${u.nombre}`:'Nuevo Usuario', body, 'Guardar', async()=>{
+    const pass = document.getElementById('f-pass').value;
+    const payload = {
+      nombre: document.getElementById('f-nombre').value,
+      email: document.getElementById('f-email').value,
+      rol: document.getElementById('f-rol').value,
+      activo: document.getElementById('f-activo').value==='true',
+      updated_at: new Date().toISOString(),
+    };
+    if (pass) payload.password_hash = pass;
+    if (!payload.nombre||!payload.email) { showToast('Nombre y email son obligatorios','error'); return; }
+    if (!isEdit&&!pass) { showToast('La contraseña es obligatoria','error'); return; }
+    let err;
+    if (isEdit) { ({error:err} = await db.from('usuarios').update(payload).eq('id',id)); }
+    else { ({error:err} = await db.from('usuarios').insert(payload)); }
+    if (err) { showToast('Error: '+err.message,'error'); return; }
+    closeModal(); showToast(isEdit?'Usuario actualizado ✓':'Usuario creado ✓'); renderUsuarios();
+  });
+}
+
+async function toggleUsuario(id, activar) {
+  const {error} = await db.from('usuarios').update({activo:activar,updated_at:new Date().toISOString()}).eq('id',id);
+  if (error) { showToast('Error: '+error.message,'error'); return; }
+  showToast(activar?'Usuario activado ✓':'Usuario desactivado'); renderUsuarios();
 }
 
 // ============================================================
