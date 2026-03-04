@@ -6,6 +6,7 @@
 <title>A&C · Sistema Operativo</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <style>
 :root {
   --ink: #0e0e1a; --ink2: #1a1a2e; --gold: #c9a84c; --gold2: #e8c96d; --gold-light: #fdf6e3;
@@ -344,7 +345,8 @@ function initApp() {
   const roleLabels = {socio_director:'Socio Director',gerente_legal:'Gerente Legal',gerente_contable:'Gerente Contable',admin:'Administración',operativo:'Operativo'};
   document.getElementById('user-role').textContent = roleLabels[currentUser.rol] || currentUser.rol;
   buildNav();
-  navigate('dashboard');
+  const startPage = currentUser.rol === 'operativo' ? 'tareas' : 'dashboard';
+  navigate(startPage);
 }
 
 function buildNav() {
@@ -510,7 +512,9 @@ async function pageDashboard() {
 // CLIENTES
 // ============================================================
 async function pageClientes() {
-  document.getElementById('topbar-actions').innerHTML = `<button class="btn btn-gold" onclick="openClienteModal()">＋ Nuevo cliente</button>`;
+  document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn btn-outline" onclick="exportClientesExcel()">⬇️ Excel</button>
+    <button class="btn btn-gold" onclick="openClienteModal()">＋ Nuevo cliente</button>`;
   await renderClientes();
 }
 
@@ -959,6 +963,7 @@ function addToGoogleCalendar(titulo, fecha, descripcion) {
 // ============================================================
 async function pageFinanzas() {
   document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn btn-outline" onclick="exportFinanzasExcel()">⬇️ Excel</button>
     <button class="btn btn-gold" onclick="openCobrarModal()">＋ Factura</button>
     <button class="btn btn-dark" onclick="openPagarModal()">＋ Cuenta por pagar</button>`;
   await renderFinanzas();
@@ -1210,7 +1215,9 @@ async function marcarPagado(tabla, id, cb) {
 // PIPELINE
 // ============================================================
 async function pagePipeline() {
-  document.getElementById('topbar-actions').innerHTML = `<button class="btn btn-gold" onclick="openPipelineModal()">＋ Nuevo prospecto</button>`;
+  document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn btn-outline" onclick="exportPipelineExcel()">⬇️ Excel</button>
+    <button class="btn btn-gold" onclick="openPipelineModal()">＋ Nuevo prospecto</button>`;
   await renderPipeline();
 }
 
@@ -1238,12 +1245,18 @@ async function renderPipeline() {
             ${etapa} <span style="background:${colors[etapa]}20;color:${colors[etapa]};border-radius:12px;padding:1px 8px;font-size:11px">${items.length}</span>
           </div>
           ${items.length===0?'<div style="text-align:center;padding:20px;font-size:11px;color:var(--slate3)">Sin prospectos</div>':''}
-          ${items.map(p=>`<div class="kanban-card" onclick="openPipelineModal('${p.id}')">
-            <h4>${p.prospecto}</h4>
-            <p>${p.servicio_interes||'—'}</p>
-            <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
-              <strong style="font-size:13px;color:var(--ink2)">${fmt(p.ticket_estimado)}</strong>
-              <span style="font-size:11px;background:var(--amber2);color:var(--amber);padding:2px 8px;border-radius:10px;font-weight:700">${p.probabilidad||0}%</span>
+          ${items.map(p=>`<div class="kanban-card">
+            <div onclick="openPipelineModal('${p.id}')">
+              <h4>${p.prospecto}</h4>
+              <p>${p.servicio_interes||'—'}</p>
+              <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+                <strong style="font-size:13px;color:var(--ink2)">${fmt(p.ticket_estimado)}</strong>
+                <span style="font-size:11px;background:var(--amber2);color:var(--amber);padding:2px 8px;border-radius:10px;font-weight:700">${p.probabilidad||0}%</span>
+              </div>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:6px">
+              <button class="btn btn-outline btn-sm" style="flex:1;font-size:11px" onclick="openPipelineModal('${p.id}')">✏️ Editar</button>
+              <button class="btn btn-danger btn-sm" style="font-size:11px" onclick="deleteRecord('pipeline','${p.id}',renderPipeline)">🗑</button>
             </div>
           </div>`).join('')}
         </div>`;
@@ -1528,8 +1541,110 @@ async function toggleUsuario(id, activar) {
 }
 
 // ============================================================
-// GENERIC DELETE
+// EXCEL EXPORTS
 // ============================================================
+function exportToExcel(data, sheetName, fileName) {
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, fileName);
+}
+
+async function exportClientesExcel() {
+  const {data} = await db.from('clientes').select('*').order('nombre_empresa');
+  if (!data?.length) { showToast('No hay clientes para exportar','error'); return; }
+  const rows = data.map(c=>({
+    'Empresa': c.nombre_empresa||'',
+    'RFC': c.rfc||'',
+    'Representante': c.representante||'',
+    'Email contacto': c.email_contacto||'',
+    'Teléfono': c.telefono||'',
+    'Sector': c.sector||'',
+    'Tipo cliente': c.tipo_cliente||'',
+    'Honorarios pactados': c.honorarios_pactados||0,
+    'Margen estimado %': c.margen_estimado||0,
+    'Complejidad': c.nivel_complejidad||0,
+    'Riesgo': c.nivel_riesgo||'',
+    'Estatus': c.estatus||'',
+    'Notas': c.notas||''
+  }));
+  exportToExcel(rows, 'Clientes', `AC_Clientes_${today()}.xlsx`);
+  showToast('Excel descargado ✓');
+}
+
+async function exportFinanzasExcel() {
+  const [cobRes, pagRes] = await Promise.all([
+    db.from('cuentas_cobrar').select('*,clientes(nombre_empresa)').order('fecha_emision'),
+    db.from('cuentas_pagar').select('*').order('fecha_vencimiento')
+  ]);
+  const co = cobRes.data||[], pa = pagRes.data||[];
+  const wb = XLSX.utils.book_new();
+
+  // Hoja 1: Cuentas por cobrar
+  const rowsCobrar = co.map(r=>({
+    'Cliente': r.clientes?.nombre_empresa||'',
+    'Folio': r.folio_factura||'',
+    'Subtotal (sin IVA)': Math.round((r.monto||0)/1.16*100)/100,
+    'IVA 16%': Math.round(((r.monto||0)-(r.monto||0)/1.16)*100)/100,
+    'Total': r.monto||0,
+    'Método de pago': r.metodo_pago||'Transferencia',
+    'Fecha emisión': r.fecha_emision||'',
+    'Fecha vencimiento': r.fecha_vencimiento||'',
+    'Estatus': r.estatus||'',
+    'Probabilidad cobro': r.probabilidad_cobro||''
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsCobrar), 'Por Cobrar');
+
+  // Hoja 2: Cuentas por pagar
+  const rowsPagar = pa.map(r=>({
+    'Proveedor': r.proveedor||'',
+    'Concepto': r.concepto||'',
+    'Monto': r.monto||0,
+    'Método de pago': r.metodo_pago||'Transferencia',
+    'Fecha vencimiento': r.fecha_vencimiento||'',
+    'Prioridad': r.prioridad||'',
+    'Impacto operativo': r.impacto_operativo||'',
+    'Estatus': r.estatus||''
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsPagar), 'Por Pagar');
+
+  // Hoja 3: Balance resumen
+  const cobradas = co.filter(r=>r.estatus==='Pagada');
+  const ingNetos = cobradas.reduce((s,r)=>s+(r.monto||0)/1.16,0);
+  const iva = cobradas.reduce((s,r)=>s+(r.monto||0)-(r.monto||0)/1.16,0);
+  const gastos = pa.filter(r=>r.estatus==='Pagada').reduce((s,r)=>s+(r.monto||0),0);
+  const balance = [
+    {'Concepto':'Ingresos netos cobrados (sin IVA)', 'Monto': Math.round(ingNetos*100)/100},
+    {'Concepto':'IVA trasladado (pasivo SAT)', 'Monto': Math.round(iva*100)/100},
+    {'Concepto':'Gastos pagados', 'Monto': gastos},
+    {'Concepto':'Utilidad neta', 'Monto': Math.round((ingNetos-gastos)*100)/100},
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(balance), 'Balance');
+
+  XLSX.writeFile(wb, `AC_Finanzas_${today()}.xlsx`);
+  showToast('Excel descargado ✓');
+}
+
+async function exportPipelineExcel() {
+  const {data} = await db.from('pipeline').select('*').order('etapa');
+  if (!data?.length) { showToast('No hay prospectos para exportar','error'); return; }
+  const rows = data.map(p=>({
+    'Prospecto': p.prospecto||'',
+    'Fuente': p.fuente||'',
+    'Servicio de interés': p.servicio_interes||'',
+    'Ticket estimado': p.ticket_estimado||0,
+    'Probabilidad %': p.probabilidad||0,
+    'Valor ponderado': Math.round((p.ticket_estimado||0)*(p.probabilidad||0)/100),
+    'Etapa': p.etapa||'',
+    'Responsable': p.responsable||'',
+    'Fecha probable cierre': p.fecha_probable_cierre||'',
+    'Notas': p.notas||''
+  }));
+  exportToExcel(rows, 'Pipeline', `AC_Pipeline_${today()}.xlsx`);
+  showToast('Excel descargado ✓');
+}
+
+
 async function deleteRecord(tabla, id, cb) {
   if (!confirm('¿Confirmas que deseas eliminar este registro? Esta acción no se puede deshacer.')) return;
   const {error} = await db.from(tabla).delete().eq('id',id);
