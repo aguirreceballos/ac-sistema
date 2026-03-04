@@ -419,20 +419,45 @@ function openModal(title, body, saveLabel, callback, hideSave=false) {
 function closeModal() { document.getElementById('modal-overlay').classList.remove('show'); modalSaveCallback = null; }
 function saveModal() { if (modalSaveCallback) modalSaveCallback(); }
 
+// Helper para filtros de mes
+function mesActual() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function mesAnterior() {
+  const d = new Date();
+  d.setMonth(d.getMonth()-1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function mesLabel(ym) {
+  if (!ym) return '';
+  const [y,m] = ym.split('-');
+  return new Date(y, m-1).toLocaleDateString('es-MX',{month:'long',year:'numeric'});
+}
+function enMes(fecha, ym) {
+  if (!fecha||!ym) return false;
+  return fecha.startsWith(ym);
+}
+
 // ============================================================
 // DASHBOARD
 // ============================================================
 async function pageDashboard() {
   const content = document.getElementById('page-content');
-  const [clientes, proyectos, tareas, cobrar, pipeline] = await Promise.all([
+  const mes = mesActual(), mesAnt = mesAnterior();
+  const [clientes, proyectos, tareas, cobrar, pagar, pipeline] = await Promise.all([
     db.from('clientes').select('*').eq('estatus','Activo'),
     db.from('proyectos').select('*,clientes(nombre_empresa)'),
     db.from('tareas').select('*').neq('estado','Completada').neq('estado','Cancelada'),
-    db.from('cuentas_cobrar').select('*').neq('estatus','Pagada').neq('estatus','Cancelada'),
+    db.from('cuentas_cobrar').select('*,clientes(nombre_empresa)'),
+    db.from('cuentas_pagar').select('*'),
     db.from('pipeline').select('*').neq('etapa','Cerrado Ganado').neq('etapa','Cerrado Perdido'),
   ]);
-  const cl = clientes.data||[], pr = proyectos.data||[], ta = tareas.data||[], co = cobrar.data||[], pip = pipeline.data||[];
-  const totalCobrar = co.reduce((s,r)=>s+Number(r.monto||0),0);
+  const cl = clientes.data||[], pr = proyectos.data||[], ta = tareas.data||[];
+  const co = cobrar.data||[], pa = pagar.data||[], pip = pipeline.data||[];
+
+  // KPIs generales
+  const totalCobrar = co.filter(r=>r.estatus!=='Pagada'&&r.estatus!=='Cancelada').reduce((s,r)=>s+Number(r.monto||0),0);
   const proyRiesgo = pr.filter(p=>p.riesgo==='Alto');
   const tareasVencidas = ta.filter(t=>t.fecha_limite && daysUntil(t.fecha_limite)<0);
   const pipelineTotal = pip.reduce((s,r)=>s+Number(r.ticket_estimado||0)*(r.probabilidad||0)/100,0);
@@ -443,6 +468,18 @@ async function pageDashboard() {
     return da-db2;
   }).slice(0,5);
 
+  // Cierre mensual — mes actual
+  const ingMes = co.filter(r=>r.estatus==='Pagada'&&enMes(r.fecha_emision,mes)).reduce((s,r)=>s+Number(r.monto||0)/1.16,0);
+  const gastMes = pa.filter(r=>r.estatus==='Pagada'&&enMes(r.fecha_vencimiento,mes)).reduce((s,r)=>s+Number(r.monto||0),0);
+  const ivaMes = co.filter(r=>r.estatus==='Pagada'&&enMes(r.fecha_emision,mes)).reduce((s,r)=>s+(Number(r.monto||0)-Number(r.monto||0)/1.16),0);
+  const utilMes = ingMes - gastMes;
+
+  // Cierre mensual — mes anterior
+  const ingAnt = co.filter(r=>r.estatus==='Pagada'&&enMes(r.fecha_emision,mesAnt)).reduce((s,r)=>s+Number(r.monto||0)/1.16,0);
+  const gastAnt = pa.filter(r=>r.estatus==='Pagada'&&enMes(r.fecha_vencimiento,mesAnt)).reduce((s,r)=>s+Number(r.monto||0),0);
+  const utilAnt = ingAnt - gastAnt;
+  const varUtil = utilAnt>0 ? Math.round((utilMes-utilAnt)/utilAnt*100) : 0;
+
   content.innerHTML = `
     <div class="grid-4" style="margin-bottom:20px">
       <div class="stat-card"><div class="stat-icon">🏢</div><div class="stat-label">Clientes Activos</div><div class="stat-value">${cl.length}</div></div>
@@ -450,6 +487,39 @@ async function pageDashboard() {
       <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-label">Cobranza Pendiente</div><div class="stat-value" style="font-size:20px">${fmt(totalCobrar)}</div></div>
       <div class="stat-card"><div class="stat-icon">🎯</div><div class="stat-label">Pipeline Ponderado</div><div class="stat-value" style="font-size:20px">${fmt(pipelineTotal)}</div></div>
     </div>
+
+    <!-- CIERRE MENSUAL -->
+    <div class="card" style="margin-bottom:20px;border-left:4px solid var(--gold)">
+      <div class="card-header">
+        <span class="card-title">📅 Cierre Mensual — ${mesLabel(mes)}</span>
+        <span style="font-size:12px;color:var(--slate2)">vs ${mesLabel(mesAnt)}</span>
+      </div>
+      <div class="card-body">
+        <div class="grid-4">
+          <div style="text-align:center;padding:12px">
+            <div style="font-size:11px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Ingresos netos</div>
+            <div style="font-size:22px;font-weight:700;color:var(--green);font-family:'Playfair Display',serif">${fmt(ingMes)}</div>
+            <div style="font-size:11px;color:var(--slate2);margin-top:3px">Ant: ${fmt(ingAnt)}</div>
+          </div>
+          <div style="text-align:center;padding:12px">
+            <div style="font-size:11px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Gastos</div>
+            <div style="font-size:22px;font-weight:700;color:var(--red);font-family:'Playfair Display',serif">${fmt(gastMes)}</div>
+            <div style="font-size:11px;color:var(--slate2);margin-top:3px">Ant: ${fmt(gastAnt)}</div>
+          </div>
+          <div style="text-align:center;padding:12px">
+            <div style="font-size:11px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Utilidad</div>
+            <div style="font-size:22px;font-weight:700;color:${utilMes>=0?'var(--gold)':'var(--red)'};font-family:'Playfair Display',serif">${fmt(utilMes)}</div>
+            <div style="font-size:11px;color:${varUtil>=0?'var(--green)':'var(--red)'};margin-top:3px;font-weight:600">${varUtil>=0?'▲':'▼'} ${Math.abs(varUtil)}% vs mes ant.</div>
+          </div>
+          <div style="text-align:center;padding:12px">
+            <div style="font-size:11px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">IVA trasladado</div>
+            <div style="font-size:22px;font-weight:700;color:var(--amber);font-family:'Playfair Display',serif">${fmt(ivaMes)}</div>
+            <div style="font-size:11px;color:var(--slate2);margin-top:3px">Pasivo SAT del mes</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="grid-2" style="margin-bottom:20px">
       <div class="card">
         <div class="card-header"><span class="card-title">⚠️ Proyectos en Riesgo Alto (${proyRiesgo.length})</span></div>
@@ -640,16 +710,23 @@ async function pageProyectos() {
   await renderProyectos();
 }
 
-async function renderProyectos(filtroEstado='', filtroRiesgo='', search='') {
+async function renderProyectos(filtroEstado='', filtroRiesgo='', search='', mes='') {
   const content = document.getElementById('page-content');
   const [pRes, cRes] = await Promise.all([
     db.from('proyectos').select('*,clientes(nombre_empresa)').order('created_at',{ascending:false}),
     db.from('clientes').select('id,nombre_empresa').eq('estatus','Activo').order('nombre_empresa')
   ]);
   let pr = pRes.data||[];
+  if (mes) pr = pr.filter(p=>enMes(p.fecha_inicio,mes)||enMes(p.fecha_limite,mes));
   if (filtroEstado) pr = pr.filter(p=>p.estado===filtroEstado);
   if (filtroRiesgo) pr = pr.filter(p=>p.riesgo===filtroRiesgo);
   if (search) pr = pr.filter(p=>p.nombre.toLowerCase().includes(search.toLowerCase())||p.clientes?.nombre_empresa?.toLowerCase().includes(search.toLowerCase()));
+  const meses = [];
+  for (let i=0;i<12;i++) {
+    const d = new Date(); d.setMonth(d.getMonth()-i);
+    const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    meses.push(ym);
+  }
 
   content.innerHTML = `
     <div class="grid-4" style="margin-bottom:18px">
@@ -659,12 +736,16 @@ async function renderProyectos(filtroEstado='', filtroRiesgo='', search='') {
       <div class="stat-card"><div class="stat-label">No facturados</div><div class="stat-value" style="color:var(--amber)">${pr.filter(p=>p.estado==='Terminado').length}</div></div>
     </div>
     <div class="filters">
-      <input class="search-input" placeholder="🔍 Buscar proyecto o cliente..." value="${search}" oninput="renderProyectos('${filtroEstado}','${filtroRiesgo}',this.value)">
-      <select class="filter-select" onchange="renderProyectos(this.value,'${filtroRiesgo}','${search}')">
+      <select class="filter-select" onchange="renderProyectos('${filtroEstado}','${filtroRiesgo}','${search}',this.value)">
+        <option value="">Todos los meses</option>
+        ${meses.map(m=>`<option value="${m}" ${mes===m?'selected':''}>${mesLabel(m)}</option>`).join('')}
+      </select>
+      <input class="search-input" placeholder="🔍 Buscar proyecto o cliente..." value="${search}" oninput="renderProyectos('${filtroEstado}','${filtroRiesgo}',this.value,'${mes}')">
+      <select class="filter-select" onchange="renderProyectos(this.value,'${filtroRiesgo}','${search}','${mes}')">
         <option value="">Todos los estados</option>
         ${['En curso','En revisión','Terminado','Facturado','Cobrado'].map(s=>`<option ${filtroEstado===s?'selected':''}>${s}</option>`).join('')}
       </select>
-      <select class="filter-select" onchange="renderProyectos('${filtroEstado}',this.value,'${search}')">
+      <select class="filter-select" onchange="renderProyectos('${filtroEstado}',this.value,'${search}','${mes}')">
         <option value="">Todos los riesgos</option>
         ${['Bajo','Medio','Alto'].map(s=>`<option ${filtroRiesgo===s?'selected':''}>${s}</option>`).join('')}
       </select>
@@ -806,21 +887,26 @@ async function pageTareas() {
   await renderTareas();
 }
 
-async function renderTareas(filtroEstado='', filtroResp='', search='') {
+async function renderTareas(filtroEstado='', filtroResp='', search='', mes='') {
   const content = document.getElementById('page-content');
   let query = db.from('tareas').select('*,proyectos(nombre,clientes(nombre_empresa))').order('fecha_limite',{ascending:true,nullsFirst:false});
-  
-  // Filtro por rol: solo socio_director ve todas; los demás solo ven las suyas
   if (currentUser.rol !== 'socio_director') {
     query = query.eq('responsable', currentUser.nombre);
   }
-  
   const { data: tareas } = await query;
   let ta = tareas||[];
+  if (mes) ta = ta.filter(t=>enMes(t.fecha_limite,mes));
   if (filtroEstado) ta = ta.filter(t=>t.estado===filtroEstado);
   if (filtroResp && currentUser.rol === 'socio_director') ta = ta.filter(t=>t.responsable===filtroResp);
   if (search) ta = ta.filter(t=>t.titulo.toLowerCase().includes(search.toLowerCase()));
   const responsables = [...new Set((tareas||[]).map(t=>t.responsable).filter(Boolean))];
+
+  const meses = [];
+  for (let i=0;i<12;i++) {
+    const d = new Date(); d.setMonth(d.getMonth()-i);
+    const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    meses.push(ym);
+  }
 
   content.innerHTML = `
     <div class="grid-4" style="margin-bottom:18px">
@@ -830,15 +916,19 @@ async function renderTareas(filtroEstado='', filtroResp='', search='') {
       <div class="stat-card"><div class="stat-label">Facturables pendientes</div><div class="stat-value" style="color:var(--amber)">${ta.filter(t=>t.facturable&&t.estado!=='Completada').length}</div></div>
     </div>
     <div class="filters">
-      <input class="search-input" placeholder="🔍 Buscar tarea..." value="${search}" oninput="renderTareas('${filtroEstado}','${filtroResp}',this.value)">
-      <select class="filter-select" onchange="renderTareas(this.value,'${filtroResp}','${search}')">
+      <select class="filter-select" onchange="renderTareas('${filtroEstado}','${filtroResp}','${search}',this.value)">
+        <option value="">Todos los meses</option>
+        ${meses.map(m=>`<option value="${m}" ${mes===m?'selected':''}>${mesLabel(m)}</option>`).join('')}
+      </select>
+      <input class="search-input" placeholder="🔍 Buscar tarea..." value="${search}" oninput="renderTareas('${filtroEstado}','${filtroResp}',this.value,'${mes}')">
+      <select class="filter-select" onchange="renderTareas(this.value,'${filtroResp}','${search}','${mes}')">
         <option value="">Todos los estados</option>
         ${['Pendiente','En curso','En revisión','Completada','Cancelada'].map(s=>`<option ${filtroEstado===s?'selected':''}>${s}</option>`).join('')}
       </select>
-      ${currentUser.rol==='socio_director'?`<select class="filter-select" onchange="renderTareas('${filtroEstado}',this.value,'${search}')">
+      ${currentUser.rol==='socio_director'?`<select class="filter-select" onchange="renderTareas('${filtroEstado}',this.value,'${search}','${mes}')">
         <option value="">Todos los responsables</option>
         ${responsables.map(r=>`<option ${filtroResp===r?'selected':''}>${r}</option>`).join('')}
-      </select>`:''}  
+      </select>`:''}
     </div>
     <div class="table-wrap">
       <table>
@@ -969,13 +1059,28 @@ async function pageFinanzas() {
   await renderFinanzas();
 }
 
-async function renderFinanzas(tab='balance') {
+async function renderFinanzas(tab='balance', mes='') {
+  if (!mes) mes = mesActual();
   const content = document.getElementById('page-content');
   const [cobRes, pagRes] = await Promise.all([
     db.from('cuentas_cobrar').select('*,clientes(nombre_empresa,email_contacto)').order('fecha_vencimiento'),
     db.from('cuentas_pagar').select('*').order('fecha_vencimiento')
   ]);
-  const co = cobRes.data||[], pa = pagRes.data||[];
+  const coTodos = cobRes.data||[], paTodos = pagRes.data||[];
+  const co = mes ? coTodos.filter(r=>enMes(r.fecha_emision,mes)||enMes(r.fecha_vencimiento,mes)) : coTodos;
+  const pa = mes ? paTodos.filter(r=>enMes(r.fecha_vencimiento,mes)) : paTodos;
+
+  // Selector de mes — últimos 12 meses
+  const meses = [];
+  for (let i=0;i<12;i++) {
+    const d = new Date(); d.setMonth(d.getMonth()-i);
+    const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    meses.push(ym);
+  }
+  const mesSelector = `<select class="filter-select" onchange="renderFinanzas('${tab}',this.value)" style="margin-bottom:12px">
+    <option value="">Todos los meses</option>
+    ${meses.map(m=>`<option value="${m}" ${mes===m?'selected':''}>${mesLabel(m)}</option>`).join('')}
+  </select>`;
 
   // CALCULOS FINANCIEROS
   const cobradas = co.filter(r=>r.estatus==='Pagada');
@@ -1004,10 +1109,11 @@ async function renderFinanzas(tab='balance') {
   });
 
   content.innerHTML = `
+    ${mesSelector}
     <div class="tabs">
-      <button class="tab ${tab==='balance'?'active':''}" onclick="renderFinanzas('balance')">📊 Balance</button>
-      <button class="tab ${tab==='cobrar'?'active':''}" onclick="renderFinanzas('cobrar')">💵 Por Cobrar (${pendientes.length})</button>
-      <button class="tab ${tab==='pagar'?'active':''}" onclick="renderFinanzas('pagar')">📤 Por Pagar (${pa.filter(r=>r.estatus!=='Pagada').length})</button>
+      <button class="tab ${tab==='balance'?'active':''}" onclick="renderFinanzas('balance','${mes}')">📊 Balance</button>
+      <button class="tab ${tab==='cobrar'?'active':''}" onclick="renderFinanzas('cobrar','${mes}')">💵 Por Cobrar (${pendientes.length})</button>
+      <button class="tab ${tab==='pagar'?'active':''}" onclick="renderFinanzas('pagar','${mes}')">📤 Por Pagar (${pa.filter(r=>r.estatus!=='Pagada').length})</button>
     </div>
 
     ${tab==='balance'?`
@@ -1103,8 +1209,8 @@ async function renderFinanzas(tab='balance') {
               </td>
               <td>${badgeEstatus(r.estatus)}</td>
               <td>
-                ${r.estatus!=='Pagada'?`<button class="btn btn-gold btn-sm" onclick="marcarPagado('cuentas_cobrar','${r.id}',renderFinanzas)">✓ Cobrado</button>`:''}
-                <button class="btn btn-danger btn-sm" onclick="deleteRecord('cuentas_cobrar','${r.id}',renderFinanzas)">🗑</button>
+                ${r.estatus!=='Pagada'?`<button class="btn btn-gold btn-sm" onclick="marcarPagadoMes('cuentas_cobrar','${r.id}','${mes}')">✓ Cobrado</button>`:''}
+                <button class="btn btn-danger btn-sm" onclick="deleteRecord('cuentas_cobrar','${r.id}',()=>renderFinanzas('cobrar','${mes}'))">🗑</button>
               </td>
             </tr>`;
           }).join('')}
@@ -1128,8 +1234,8 @@ async function renderFinanzas(tab='balance') {
             <td>${r.impacto_operativo?`<span class="badge badge-${r.impacto_operativo==='Crítico'?'red':r.impacto_operativo==='Alto'?'amber':'gray'}">${r.impacto_operativo}</span>`:'—'}</td>
             <td>${badgeEstatus(r.estatus)}</td>
             <td>
-              ${r.estatus!=='Pagada'?`<button class="btn btn-gold btn-sm" onclick="marcarPagado('cuentas_pagar','${r.id}',renderFinanzas)">✓ Pagado</button>`:''}
-              <button class="btn btn-danger btn-sm" onclick="deleteRecord('cuentas_pagar','${r.id}',renderFinanzas)">🗑</button>
+              ${r.estatus!=='Pagada'?`<button class="btn btn-gold btn-sm" onclick="marcarPagadoMes('cuentas_pagar','${r.id}','${mes}')">✓ Pagado</button>`:''}
+              <button class="btn btn-danger btn-sm" onclick="deleteRecord('cuentas_pagar','${r.id}',()=>renderFinanzas('pagar','${mes}'))">🗑</button>
             </td>
           </tr>`).join('')}
         </tbody>
@@ -1205,10 +1311,16 @@ async function openPagarModal() {
   });
 }
 
+async function marcarPagadoMes(tabla, id, mes) {
+  const {error} = await db.from(tabla).update({estatus:'Pagada'}).eq('id',id);
+  if (error) { showToast('Error: '+error.message,'error'); return; }
+  showToast('Marcado como pagado ✓'); renderFinanzas('balance', mes);
+}
+
 async function marcarPagado(tabla, id, cb) {
   const {error} = await db.from(tabla).update({estatus:'Pagada'}).eq('id',id);
   if (error) { showToast('Error: '+error.message,'error'); return; }
-  showToast('Marcado como pagado ✓'); cb();
+  showToast('Marcado como pagado ✓'); if(cb) cb();
 }
 
 // ============================================================
@@ -1221,15 +1333,26 @@ async function pagePipeline() {
   await renderPipeline();
 }
 
-async function renderPipeline() {
+async function renderPipeline(mes='') {
   const content = document.getElementById('page-content');
   const {data} = await db.from('pipeline').select('*').order('created_at',{ascending:false});
-  const pip = data||[];
+  let pip = data||[];
+  if (mes) pip = pip.filter(p=>enMes(p.fecha_probable_cierre,mes)||enMes(p.created_at?.substring(0,10),mes));
+  const meses = [];
+  for (let i=0;i<12;i++) {
+    const d = new Date(); d.setMonth(d.getMonth()-i);
+    const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    meses.push(ym);
+  }
   const etapas = ['Lead','Reunión','Propuesta','Negociación','Cerrado Ganado','Cerrado Perdido'];
   const totalPond = pip.filter(p=>!['Cerrado Ganado','Cerrado Perdido'].includes(p.etapa)).reduce((s,p)=>s+Number(p.ticket_estimado||0)*(p.probabilidad||0)/100,0);
   const ganados = pip.filter(p=>p.etapa==='Cerrado Ganado').reduce((s,p)=>s+Number(p.ticket_estimado||0),0);
 
   content.innerHTML = `
+    <select class="filter-select" onchange="renderPipeline(this.value)" style="margin-bottom:12px">
+      <option value="">Todos los meses</option>
+      ${meses.map(m=>`<option value="${m}" ${mes===m?'selected':''}>${mesLabel(m)}</option>`).join('')}
+    </select>
     <div class="grid-4" style="margin-bottom:18px">
       <div class="stat-card"><div class="stat-label">Prospectos activos</div><div class="stat-value">${pip.filter(p=>!p.etapa.includes('Cerrado')).length}</div></div>
       <div class="stat-card"><div class="stat-label">Pipeline ponderado</div><div class="stat-value" style="font-size:18px">${fmt(totalPond)}</div></div>
