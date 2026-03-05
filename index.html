@@ -1525,16 +1525,17 @@ async function openPipelineModal(id=null) {
       updated_at: new Date().toISOString(),
     };
     if (!payload.prospecto) { showToast('El nombre es obligatorio','error'); return; }
-    // Detectar si acaba de cerrarse como Ganado con referidor para generar comisión
-    const etapaAnterior = isEdit ? p.etapa : null;
+    // Guardar etapa anterior antes de actualizar
+    const etapaAnterior = isEdit ? p.etapa : '';
     let err;
     if (isEdit) { ({error:err} = await db.from('pipeline').update(payload).eq('id',id)); }
     else { ({error:err} = await db.from('pipeline').insert(payload)); }
     if (err) { showToast('Error: '+err.message,'error'); return; }
-    // Auto-registrar comisión si se cierra como Ganado con referidor
-    if (payload.etapa==='Cerrado Ganado' && payload.referidor && etapaAnterior!=='Cerrado Ganado' && payload.ticket_estimado) {
-      const comision = payload.ticket_estimado * 0.08;
-      await db.from('cuentas_pagar').insert({
+    // Auto-registrar comisión si se cierra como Ganado con referidor (solo primera vez)
+    const yaEraCerrado = etapaAnterior === 'Cerrado Ganado';
+    if (payload.etapa==='Cerrado Ganado' && payload.referidor && !yaEraCerrado && payload.ticket_estimado) {
+      const comision = Math.round(payload.ticket_estimado * 0.08 * 100) / 100;
+      const {error: errCom} = await db.from('cuentas_pagar').insert({
         proveedor: payload.referidor,
         concepto: `Comisión 8% por referido: ${payload.prospecto}`,
         monto: comision,
@@ -1542,10 +1543,12 @@ async function openPipelineModal(id=null) {
         prioridad: 'Media',
         metodo_pago: 'Transferencia',
         impacto_operativo: 'Bajo',
+        fecha_vencimiento: new Date(Date.now()+15*86400000).toISOString().substring(0,10),
       });
-      showToast(`✓ Prospecto cerrado · Comisión de ${fmt(comision)} registrada para ${payload.referidor}`);
+      if (!errCom) showToast(`💰 Comisión de ${fmt(comision)} registrada en Por Pagar para ${payload.referidor}`);
+      else showToast('Prospecto guardado pero error al registrar comisión: '+errCom.message,'error');
     } else {
-      showToast(isEdit?'Prospecto actualizado':'Prospecto creado');
+      showToast(isEdit?'Prospecto actualizado ✓':'Prospecto creado ✓');
     }
     closeModal(); renderPipeline();
   });
