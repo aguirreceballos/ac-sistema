@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diagnóstico Legal Empresarial | Aguirre & Ceballos</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root {
+  --bg:         #eeede9;
+  --surface:    #ffffff;
+  --surface2:   #f6f5f1;
+  --border:     #dddbd4;
+  --black:      #111110;
+  --ink:        #2a2a27;
+  --muted:      #6b6b65;
+  --faint:      #9e9e97;
+  --chartr:     #d4e030;
+  --chartr-dk:  #a8b020;
+  --red:        #c0392b;
+  --amber:      #c87d10;
+  --green:      #2a7a4f;
+  --red-bg:     #fdf1f0;
+  --amber-bg:   #fdf6ec;
+  --green-bg:   #f0faf5;
+  --radius:     4px;
+  --shadow:     0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04);
+}
+*, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+  min-height: 100vh;
+}
+
+/* ── SHELL ── */
+.shell { max-width: 740px; margin: 0 auto; padding: 0 20px 100px; }
+
+/* ── HEADER ── */
+.site-header {
+  padding: 32px 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
+}
+.logo-block { display:flex; flex-direction:column; gap:2px; }
+.logo-main {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--black);
+}
+.logo-sub {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--faint);
+  text-transform: uppercase;
+}
+.header-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: var(--black);
+  color: var(--chartr);
+  padding: 4px 10px;
+  border-radius: 2px;
+}
+
+/* ── HERO ── */
+.hero { padding: 56px 0 48px; }
+.hero-eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hero-eyebrow::before {
+  content:'';
+  display:inline-block;
+  width:24px; height:1px;
+  background: var(--chartr-dk);
+}
+.hero-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(38px, 6vw, 56px);
+  font-weight: 300;
+  line-height: 1.08;
+  color: var(--black);
+  margin-bottom: 22px;
+}
+.hero-title em { font-style: italic; color: var(--chartr-dk); }
+.hero-body {
+  font-size: 15px;
+  color: var(--muted);
+  max-width: 520px;
+  margin-bottom: 36px;
+  font-weight: 300;
+  line-height: 1.7;
+}
+.hero-stats {
+  display: flex;
+  gap: 0;
+  margin-bottom: 44px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.stat {
+  flex: 1;
+  padding: 18px 20px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.stat:last-child { border-right: none; }
+.stat-value {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--black);
+}
+.stat-label { font-size: 11px; color: var(--faint); font-weight: 400; }
+.btn-start {
+  background: var(--black);
+  color: var(--chartr);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 14px 36px;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-start:hover { background: #222220; }
+
+/* ── PROGRESS ── */
+#diagnostico-section { display: none; padding-top: 40px; }
+.progress-wrap { margin-bottom: 40px; }
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.progress-title {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.progress-counter {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--faint);
+}
+.progress-bar-bg {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--chartr-dk);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+.progress-steps {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.pstep {
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  color: var(--faint);
+  background: var(--surface);
+  transition: all 0.2s;
+  cursor: default;
+  white-space: nowrap;
+}
+.pstep.done { border-color: var(--chartr-dk); color: var(--chartr-dk); background: #f8fae8; }
+.pstep.active { border-color: var(--black); color: var(--black); background: var(--surface); font-weight: 500; }
+
+/* ── SECTION CARD ── */
+.section-card { display: none; animation: fadeUp 0.35s ease both; }
+.section-card.visible { display: block; }
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(14px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.section-card-inner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.section-head {
+  padding: 28px 32px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.section-number {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--chartr-dk);
+  margin-bottom: 6px;
+}
+.section-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 26px;
+  font-weight: 400;
+  color: var(--black);
+  margin-bottom: 6px;
+}
+.section-desc {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 300;
+}
+.section-body { padding: 0 32px; }
+.section-foot {
+  padding: 20px 32px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* ── QUESTIONS ── */
+.question-block {
+  padding: 22px 0;
+  border-bottom: 1px solid var(--bg);
+}
+.question-block:last-of-type { border-bottom: none; }
+.q-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.q-risk-dot {
+  width: 6px; height: 6px; min-width: 6px;
+  border-radius: 50%;
+  margin-top: 7px;
+}
+.rh .q-risk-dot { background: var(--red); }
+.rm .q-risk-dot { background: var(--amber); }
+.rl .q-risk-dot { background: var(--green); }
+.q-label { font-size: 14px; color: var(--ink); font-weight: 400; line-height: 1.5; }
+.options { display: flex; flex-direction: column; gap: 6px; padding-left: 16px; }
+.opt {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.18s;
+  background: var(--surface2);
+  user-select: none;
+}
+.opt:hover { border-color: var(--chartr-dk); background: #fafceb; }
+.opt.selected { border-color: var(--chartr-dk); background: #f5f9de; }
+.opt-marker {
+  width: 16px; height: 16px; min-width: 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.18s;
+  background: var(--surface);
+}
+.opt.selected .opt-marker { border-color: var(--chartr-dk); background: var(--chartr-dk); }
+.opt-marker::after {
+  content: '';
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--black);
+  display: none;
+}
+.opt.selected .opt-marker::after { display: block; }
+.opt-text { font-size: 13px; color: var(--muted); }
+.opt.selected .opt-text { color: var(--ink); }
+
+/* ── BUTTONS ── */
+.btn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 24px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.18s;
+  border: none;
+}
+.btn-primary { background: var(--black); color: var(--chartr); }
+.btn-primary:hover { background: #222220; }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+.btn-ghost:hover { border-color: var(--ink); color: var(--ink); }
+.btn-outline { background: transparent; color: var(--black); border: 1.5px solid var(--black); }
+.btn-outline:hover { background: var(--black); color: var(--chartr); }
+.nav-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--faint); }
+.val-msg {
+  font-size: 11px;
+  color: var(--amber);
+  font-family: 'DM Mono', monospace;
+  letter-spacing: 0.04em;
+  padding: 8px 0 0 32px;
+}
+
+/* ── CONTACT SECTION ── */
+.contact-section { display: none; animation: fadeUp 0.35s ease both; }
+.contact-section.visible { display: block; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.card-head {
+  padding: 28px 32px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.card-body { padding: 28px 32px; }
+.card-foot {
+  padding: 20px 32px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-field { display: flex; flex-direction: column; gap: 6px; }
+.form-field.full { grid-column: 1 / -1; }
+.form-label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+}
+.form-input {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--ink);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  padding: 10px 14px;
+  transition: border 0.18s;
+}
+.form-input:focus { outline: none; border-color: var(--chartr-dk); background: #fafceb; }
+.form-input::placeholder { color: var(--faint); }
+.privacy-note {
+  margin-top: 16px;
+  font-size: 11px;
+  color: var(--faint);
+  line-height: 1.6;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+/* ── RESULTS ── */
+.results-section { display: none; animation: fadeUp 0.4s ease both; }
+.results-section.visible { display: block; }
+
+/* Global score */
+.global-score-card {
+  background: var(--black);
+  border-radius: var(--radius);
+  padding: 36px 40px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+.gs-left { flex: 1; }
+.gs-eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--chartr);
+  margin-bottom: 10px;
+}
+.gs-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 300;
+  color: #f5f3ec;
+  line-height: 1.3;
+  margin-bottom: 6px;
+}
+.gs-subtitle { font-size: 13px; color: #888880; font-weight: 300; }
+.gs-right { text-align: right; }
+.gs-score-ring {
+  position: relative;
+  width: 96px; height: 96px;
+  margin-left: auto;
+  margin-bottom: 8px;
+}
+.gs-score-ring svg { transform: rotate(-90deg); }
+.gs-score-num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.gs-num {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: #f5f3ec;
+  line-height: 1;
+}
+.gs-num-label { font-size: 9px; color: #888880; font-family: 'DM Mono', monospace; letter-spacing: 0.08em; }
+.gs-level {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gs-red { background: rgba(192,57,43,0.2); color: #e87060; }
+.gs-amber { background: rgba(200,125,16,0.2); color: #e8a050; }
+.gs-green { background: rgba(42,122,79,0.2); color: #60c890; }
+
+/* Area cards */
+.areas-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.area-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+  border-top: 3px solid var(--border);
+  transition: border-top-color 0.3s;
+}
+.area-card.risk-red { border-top-color: var(--red); }
+.area-card.risk-amber { border-top-color: var(--amber); }
+.area-card.risk-green { border-top-color: var(--green); }
+.area-card-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+.area-name { font-size: 13px; font-weight: 500; color: var(--black); }
+.area-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 2px;
+}
+.risk-red .area-badge { background: var(--red-bg); color: var(--red); }
+.risk-amber .area-badge { background: var(--amber-bg); color: var(--amber); }
+.risk-green .area-badge { background: var(--green-bg); color: var(--green); }
+.area-pct {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--black);
+  margin-bottom: 6px;
+}
+.area-bar-bg { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 8px; }
+.area-bar-fill { height: 100%; border-radius: 2px; transition: width 1s cubic-bezier(0.4,0,0.2,1); }
+.risk-red .area-bar-fill { background: var(--red); }
+.risk-amber .area-bar-fill { background: var(--amber); }
+.risk-green .area-bar-fill { background: var(--green); }
+.area-finding { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+/* Summary */
+.summary-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+.summary-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 20px;
+  color: var(--black);
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.summary-list { display: flex; flex-direction: column; gap: 10px; }
+.summary-item {
+  display: flex; gap: 12px;
+  font-size: 13px; color: var(--muted);
+  padding: 10px 14px;
+  background: var(--surface2);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.summary-dot {
+  width: 6px; height: 6px; min-width: 6px;
+  background: var(--chartr-dk);
+  border-radius: 50%;
+  margin-top: 6px;
+}
+
+/* CTA */
+.cta-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  margin-bottom: 20px;
+}
+.cta-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 24px;
+  color: var(--black);
+  margin-bottom: 8px;
+}
+.cta-sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; font-weight: 300; line-height: 1.6; }
+.cta-buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+/* Success toast */
+.toast {
+  position: fixed;
+  bottom: 24px; left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--black);
+  color: var(--chartr);
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  padding: 12px 24px;
+  border-radius: var(--radius);
+  z-index: 999;
+  transition: transform 0.3s ease;
+  pointer-events: none;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* Footer */
+.footer {
+  margin-top: 60px;
+  padding: 24px 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.footer-brand { font-family:'Cormorant Garamond',serif; font-size:13px; color:var(--faint); }
+.footer-legal { font-size: 10px; color: var(--faint); letter-spacing:0.05em; }
+
+/* Responsive */
+@media(max-width:560px){
+  .areas-grid { grid-template-columns:1fr; }
+  .contact-grid { grid-template-columns:1fr; }
+  .global-score-card { flex-direction:column; text-align:left; }
+  .gs-right { margin-left: 0; }
+  .gs-score-ring { margin-left: 0; }
+  .hero-stats { flex-direction: column; }
+  .stat { border-right: none; border-bottom: 1px solid var(--border); }
+  .stat:last-child { border-bottom: none; }
+  .section-head, .section-body, .section-foot, .card-head, .card-body, .card-foot { padding-left: 20px; padding-right: 20px; }
+  .cta-buttons { flex-direction: column; align-items: center; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- HEADER -->
+<header class="site-header">
+  <div class="logo-block">
+    <div class="logo-main">Aguirre &amp; Ceballos</div>
+    <div class="logo-sub">Liridicum · Tributa · Consilium</div>
+  </div>
+  <div class="header-badge">Monterrey, N.L.</div>
+</header>
+
+<!-- HERO -->
+<section id="hero-section" class="hero">
+  <div class="hero-eyebrow">Herramienta de evaluación empresarial</div>
+  <h1 class="hero-title">Diagnóstico Legal<br><em>Integral</em></h1>
+  <p class="hero-body">Responda 8 áreas clave de su empresa en menos de 12 minutos. Recibirá un reporte inmediato con el nivel de cumplimiento de su negocio, sin costo y sin compromiso.</p>
+  <div class="hero-stats">
+    <div class="stat"><div class="stat-value">8</div><div class="stat-label">Áreas evaluadas</div></div>
+    <div class="stat"><div class="stat-value">~40</div><div class="stat-label">Preguntas clave</div></div>
+    <div class="stat"><div class="stat-value">Inmediato</div><div class="stat-label">Resultado</div></div>
+    <div class="stat"><div class="stat-value">Sin costo</div><div class="stat-label">Consulta inicial</div></div>
+  </div>
+  <button class="btn-start" onclick="startDiagnostico()">Iniciar diagnóstico →</button>
+</section>
+
+<!-- DIAGNÓSTICO -->
+<section id="diagnostico-section">
+
+  <!-- PROGRESS -->
+  <div class="progress-wrap">
+    <div class="progress-header">
+      <span class="progress-title">Progreso</span>
+      <span class="progress-counter" id="progressCounter">0 / 8</span>
+    </div>
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill" style="width:0%"></div></div>
+    <div class="progress-steps" id="progressSteps"></div>
+  </div>
+
+  <div id="sectionsContainer"></div>
+
+  <!-- CONTACT -->
+  <div class="contact-section" id="contactSection">
+    <div class="card">
+      <div class="card-head">
+        <div class="section-number">// Último paso</div>
+        <div class="section-title">Sus Datos de Contacto</div>
+        <div class="section-desc">Para generar su reporte y contactarle con los resultados, necesitamos sus datos. La información es estrictamente confidencial.</div>
+      </div>
+      <div class="card-body">
+        <div class="contact-grid">
+          <div class="form-field"><label class="form-label">Nombre completo</label><input class="form-input" type="text" id="c_nombre" placeholder="Ej. Juan García Martínez"></div>
+          <div class="form-field"><label class="form-label">Empresa / Razón social</label><input class="form-input" type="text" id="c_empresa" placeholder="Ej. Distribuidora García SA de CV"></div>
+          <div class="form-field"><label class="form-label">Teléfono / WhatsApp</label><input class="form-input" type="tel" id="c_telefono" placeholder="Ej. 844 123 4567"></div>
+          <div class="form-field"><label class="form-label">Giro del negocio</label><input class="form-input" type="text" id="c_giro" placeholder="Ej. Comercialización de productos"></div>
+          <div class="form-field"><label class="form-label">No. aproximado de empleados</label><input class="form-input" type="text" id="c_empleados" placeholder="Ej. 25"></div>
+          <div class="form-field"><label class="form-label">¿Cómo nos conoció?</label><input class="form-input" type="text" id="c_referido" placeholder="Ej. Recomendación, redes sociales..."></div>
+        </div>
+        <p class="privacy-note">🔒 Sus datos son confidenciales y no serán compartidos con terceros. Se utilizan exclusivamente para enviarle su diagnóstico y contactarle para la revisión inicial.</p>
+      </div>
+      <div class="card-foot">
+        <button class="btn btn-ghost" onclick="prevSection()">← Anterior</button>
+        <button class="btn btn-primary" onclick="generateResults()" style="padding:12px 28px;font-size:14px;">Ver mi diagnóstico →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="results-section" id="resultsSection">
+
+    <!-- GLOBAL SCORE -->
+    <div class="global-score-card">
+      <div class="gs-left">
+        <div class="gs-eyebrow">Diagnóstico General de Cumplimiento</div>
+        <div class="gs-title" id="gsTitle">Su empresa presenta áreas de atención.</div>
+        <div class="gs-subtitle" id="gsSub">Revisión de 8 áreas · Aguirre &amp; Ceballos</div>
+      </div>
+      <div class="gs-right">
+        <div class="gs-score-ring">
+          <svg width="96" height="96" viewBox="0 0 96 96">
+            <circle cx="48" cy="48" r="40" fill="none" stroke="#2a2a27" stroke-width="6"/>
+            <circle id="gsRingFill" cx="48" cy="48" r="40" fill="none" stroke="#d4e030" stroke-width="6"
+              stroke-dasharray="251.2" stroke-dashoffset="251.2" stroke-linecap="round"/>
+          </svg>
+          <div class="gs-score-num">
+            <div class="gs-num" id="gsNum">0%</div>
+            <div class="gs-num-label">riesgo</div>
+          </div>
+        </div>
+        <div class="gs-level" id="gsLevel">—</div>
+      </div>
+    </div>
+
+    <!-- AREAS GRID -->
+    <div class="areas-grid" id="areasGrid"></div>
+
+    <!-- SUMMARY -->
+    <div class="summary-card">
+      <div class="summary-title">Hallazgos prioritarios</div>
+      <div class="summary-list" id="summaryList"></div>
+    </div>
+
+    <!-- CTA -->
+    <div class="cta-card">
+      <div class="cta-title">¿Qué sigue?</div>
+      <div class="cta-sub">Nuestro equipo revisará su diagnóstico y le contactará en las próximas <strong>24 horas hábiles</strong> para una consulta inicial sin costo. También puede descargar su reporte para compartirlo.</div>
+      <div class="cta-buttons">
+        <button class="btn btn-primary" onclick="downloadPDF()" style="padding:12px 28px;">↓ Descargar reporte PDF</button>
+        <button class="btn btn-outline" onclick="window.print()">Imprimir</button>
+      </div>
+    </div>
+
+    <p style="text-align:center;font-size:11px;color:var(--faint);margin-top:4px;">
+      Le contactaremos al número proporcionado en las próximas horas hábiles.
+    </p>
+  </div>
+
+</section>
+
+<footer class="footer">
+  <div class="footer-brand">Aguirre &amp; Ceballos — Monterrey, N.L.</div>
+  <div class="footer-legal">Información confidencial · Uso exclusivo del destinatario</div>
+</footer>
+</div>
+
+<div class="toast" id="toast">✓ Diagnóstico enviado correctamente</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// SUPABASE CONFIG — reemplaza con tus credenciales
+// ══════════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://pwextfcojtqrasjgkozk.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_VtVfZzTYI3RjF3oQt_sAAQ_gE8-MUnp';
+
+async function saveToSupabase(payload) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/diagnosticos`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify(payload)
+    });
+    return res.ok;
+  } catch(e) {
+    console.warn('Supabase save failed:', e);
+    return false;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// AREAS Y PREGUNTAS — 8 áreas, ~5 preguntas c/u
+// ══════════════════════════════════════════════════════════
+const AREAS = [
+  {
+    id: 'laboral', label: 'Laboral', title: 'Área Laboral',
+    desc: 'Contratos individuales, nómina, IMSS, Infonavit e incidencias de trabajo.',
+    questions: [
+      { id:'l1', text:'¿Todos sus empleados cuentan con contrato individual de trabajo por escrito y firmado?', risk:'high',
+        opts:['Sí, todos cuentan con contrato','La mayoría sí','Solo algunos','No tenemos contratos escritos'] },
+      { id:'l2', text:'¿Sus trabajadores están registrados ante el IMSS con su salario real integrado (incluyendo partes proporcionales de aguinaldo, vacaciones y prima)?', risk:'high',
+        opts:['Sí, con salario real integrado','Con salario base sin integrar','Algunos no están dados de alta','No estoy seguro'] },
+      { id:'l3', text:'¿Cuenta con Reglamento Interior de Trabajo registrado y vigente ante la STPS?', risk:'med',
+        opts:['Sí, registrado y actualizado','Sí, pero está desactualizado','No tenemos reglamento','No sabía que era obligatorio'] },
+      { id:'l4', text:'¿Ha tenido demandas laborales o procedimientos de conciliación (CFCRL) en los últimos 3 años?', risk:'high',
+        opts:['No, ninguna','Sí, 1-2 ya concluidas','Sí, tenemos alguna en proceso','Sí, varias activas'] },
+      { id:'l5', text:'¿Documenta y archiva finiquitos o liquidaciones con comprobante de pago firmado?', risk:'high',
+        opts:['Siempre, con documentación completa','La mayoría de las veces','Raramente','Nunca hemos documentado finiquitos'] },
+    ]
+  },
+  {
+    id: 'fiscal', label: 'Fiscal / SAT', title: 'Área Fiscal y SAT',
+    desc: 'Cumplimiento de obligaciones fiscales, IVA, ISR, declaraciones y relación con el SAT.',
+    questions: [
+      { id:'f1', text:'¿Presenta sus declaraciones fiscales mensuales (IVA) y anuales (ISR) en tiempo y forma?', risk:'high',
+        opts:['Siempre y sin retrasos','Generalmente sí, con algún retraso ocasional','Con frecuencia hay retrasos','Tenemos declaraciones pendientes'] },
+      { id:'f2', text:'¿Ha recibido requerimientos, cartas invitación o revisiones electrónicas del SAT en los últimos 2 años?', risk:'high',
+        opts:['No hemos recibido nada','Cartas invitación, ya atendidas','Requerimientos formales, atendidos','Tenemos algo pendiente sin atender'] },
+      { id:'f3', text:'¿Emite CFDI (facturas electrónicas) por la totalidad de sus ingresos?', risk:'high',
+        opts:['Sí, el 100% de las ventas','La mayoría, pero hay excepciones','Solo algunas operaciones','Hay ventas sin factura'] },
+      { id:'f4', text:'¿Verifica que sus proveedores principales no estén en la lista del SAT 69-B (EFOS/EDOS)?', risk:'med',
+        opts:['Sí, los verificamos periódicamente','No los verificamos pero asumimos que están bien','Nunca lo hemos hecho','No conozco ese procedimiento'] },
+      { id:'f5', text:'¿Tiene créditos fiscales, multas o adeudos pendientes ante el SAT?', risk:'high',
+        opts:['No tenemos ninguno','Tenemos uno en proceso de aclaración','Tenemos varios pendientes','No estoy seguro del estado'] },
+    ]
+  },
+  {
+    id: 'contabilidad', label: 'Contabilidad', title: 'Contabilidad y Finanzas',
+    desc: 'Registros contables, estados financieros, control interno y salud financiera del negocio.',
+    questions: [
+      { id:'cb1', text:'¿Lleva contabilidad formal y actualizada conforme al marco normativo mexicano (NIF)?', risk:'high',
+        opts:['Sí, contabilidad formal y al día','Llevamos registros básicos pero no formales','Solo controlamos ingresos y egresos en Excel','No llevamos registro contable'] },
+      { id:'cb2', text:'¿Cuenta con estados financieros actualizados (Balance General y Estado de Resultados) del último ejercicio?', risk:'high',
+        opts:['Sí, al corriente y revisados','Tenemos algo, pero desactualizados','Los genera el contador solo para el SAT','No contamos con estados financieros'] },
+      { id:'cb3', text:'¿Su información contable concuerda con sus declaraciones fiscales y con los movimientos bancarios?', risk:'high',
+        opts:['Sí, están conciliados','Hay algunas diferencias menores','Hay diferencias significativas sin conciliar','No hacemos conciliación'] },
+      { id:'cb4', text:'¿Tiene control formal de cuentas por cobrar y por pagar?', risk:'med',
+        opts:['Sí, sistema o reporte actualizado','Control manual pero funcional','Control muy informal','No tenemos control'] },
+      { id:'cb5', text:'¿Su contabilidad es llevada por un contador certificado externo o departamento interno?', risk:'med',
+        opts:['Contador externo profesional','Departamento interno con CPC','Personal administrativo sin formación contable','El dueño o un familiar'] },
+    ]
+  },
+  {
+    id: 'corporativo', label: 'Corporativo', title: 'Área Corporativa',
+    desc: 'Estructura societaria, contratos comerciales, poderes notariales y cumplimiento corporativo.',
+    questions: [
+      { id:'co1', text:'¿Los estatutos sociales de su empresa están actualizados y reflejan la estructura actual?', risk:'med',
+        opts:['Sí, actualizados recientemente','Tienen algunos años pero sin cambios relevantes','Están desactualizados','No conozco el estado de los estatutos'] },
+      { id:'co2', text:'¿Firma contratos escritos con sus principales clientes y proveedores?', risk:'high',
+        opts:['Siempre, con contratos claros','Con algunos, no con todos','Raramente formalizamos por escrito','Operamos de palabra o por email'] },
+      { id:'co3', text:'¿Los poderes notariales vigentes corresponden a quienes actualmente toman decisiones en la empresa?', risk:'med',
+        opts:['Sí, actualizados y correctos','Algunos representantes no tienen poder vigente','Hay poderes de personas que ya no están','No hemos revisado los poderes'] },
+      { id:'co4', text:'¿Tiene registrada su marca o nombre comercial ante el IMPI?', risk:'low',
+        opts:['Sí, registrada y vigente','En proceso de registro','No está registrada','No lo hemos considerado'] },
+      { id:'co5', text:'¿Sus libros de asambleas y actas corporativas están al corriente?', risk:'med',
+        opts:['Sí, al corriente','Con 1-2 años de retraso','Nunca se han llevado formalmente','No sé'] },
+    ]
+  },
+  {
+    id: 'seguridad', label: 'Seg. e Higiene', title: 'Seguridad e Higiene',
+    desc: 'Cumplimiento NOM-035, condiciones de trabajo, STPS y protección al personal.',
+    questions: [
+      { id:'s1', text:'¿Cuenta con Comisión Mixta de Seguridad e Higiene constituida y activa?', risk:'med',
+        opts:['Sí, activa con actas al corriente','Constituida pero sin reuniones regulares','Solo en papel, inactiva','No existe'] },
+      { id:'s2', text:'¿Ha aplicado la evaluación de factores de riesgo psicosocial (NOM-035) en los últimos 12 meses?', risk:'med',
+        opts:['Sí, aplicada y documentada','La aplicamos pero sin seguimiento','No la hemos aplicado','No conocemos la NOM-035'] },
+      { id:'s3', text:'¿Ha recibido inspecciones de la STPS? ¿Con qué resultado?', risk:'high',
+        opts:['Sí, sin hallazgos o ya resueltos','Sí, con hallazgos pendientes','No hemos recibido inspecciones','Tenemos multas o resoluciones pendientes'] },
+      { id:'s4', text:'¿El personal recibe capacitación documentada en seguridad (constancias DC-3/DC-4)?', risk:'med',
+        opts:['Sí, con constancias vigentes','Reciben capacitación pero sin constancias','Capacitación esporádica','No reciben capacitación'] },
+    ]
+  },
+  {
+    id: 'datos', label: 'Datos Personales', title: 'Protección de Datos',
+    desc: 'Cumplimiento LFPDPPP, avisos de privacidad y manejo de información personal.',
+    questions: [
+      { id:'d1', text:'¿Cuenta con Aviso de Privacidad publicado y entregado a empleados, clientes y proveedores?', risk:'med',
+        opts:['Sí, publicado y entregado a todos','Solo uno genérico, sin entregar','No contamos con aviso de privacidad','No sabía que era obligatorio'] },
+      { id:'d2', text:'¿Ha recibido alguna queja o reclamación relacionada con datos personales ante el INAI?', risk:'high',
+        opts:['No, nunca','Sí, ya resuelta','Sí, en proceso','Tengo una reclamación pendiente sin atender'] },
+      { id:'d3', text:'¿Tiene un responsable designado del tratamiento de datos personales?', risk:'low',
+        opts:['Sí, designado formalmente','De manera informal','No tenemos responsable designado','No conocemos esa obligación'] },
+    ]
+  },
+  {
+    id: 'comercio', label: 'Comercio Exterior', title: 'Comercio Exterior',
+    desc: 'Importaciones, exportaciones, pedimentos, agente aduanal y regímenes aduaneros.',
+    questions: [
+      { id:'cx1', text:'¿Realiza operaciones de importación o exportación de mercancías?', risk:'low',
+        opts:['Sí, regularmente','Esporádicamente','No realizamos operaciones de comercio exterior','Estamos evaluando iniciar'] },
+      { id:'cx2', text:'¿Sus pedimentos de importación/exportación están archivados y concuerdan con su contabilidad?', risk:'high',
+        opts:['Sí, todo en orden y conciliado','Con algunas inconsistencias menores','No llevamos control de pedimentos','No aplica, no operamos CE'] },
+      { id:'cx3', text:'¿Trabaja con un agente aduanal con contrato formalizado?', risk:'med',
+        opts:['Sí, con contrato formal vigente','Sí, pero sin contrato escrito','Usamos diferentes agentes según operación','No aplica'] },
+      { id:'cx4', text:'¿Ha tenido algún embargo, retención o irregularidad aduanera en los últimos 3 años?', risk:'high',
+        opts:['No, ninguna','Sí, ya resuelta','Sí, en proceso','No aplica'] },
+    ]
+  },
+  {
+    id: 'litigio', label: 'Litigio / Admin.', title: 'Litigio y Administrativo',
+    desc: 'Procesos judiciales activos, multas, recursos y relación con autoridades.',
+    questions: [
+      { id:'li1', text:'¿Su empresa tiene juicios o procedimientos activos (civiles, mercantiles, administrativos)?', risk:'high',
+        opts:['No tenemos ninguno','Sí, 1-2 bajo control con seguimiento','Sí, varios en proceso','Hay algunos sin seguimiento activo'] },
+      { id:'li2', text:'¿Ha recibido multas o sanciones de alguna autoridad (SAT, IMSS, STPS, municipal) en los últimos 2 años?', risk:'high',
+        opts:['No hemos recibido multas','Sí, ya pagadas o aclaradas','Sí, tenemos multas pendientes','No estoy seguro del estado'] },
+      { id:'li3', text:'¿Ha identificado algún documento o notificación de autoridad de procedencia dudosa o que no corresponda a registros oficiales?', risk:'high',
+        opts:['No, nunca','Tuvimos un caso similar, ya resuelto','Tenemos dudas sobre algún documento','Sí, es una situación actual'] },
+      { id:'li4', text:'¿Cuenta con asesoría para interponer recursos o medios de defensa contra actos de autoridad?', risk:'med',
+        opts:['Sí, asesoría activa y preventiva','Solo cuando surge una urgencia','No, atendemos lo que podemos internamente','No hemos necesitado hasta ahora'] },
+    ]
+  },
+];
+
+const FINDINGS = {
+  laboral:      { red:'Contratos y/o registros IMSS con irregularidades que generan exposición legal.',      amber:'Algunos aspectos de nómina o contratos requieren atención.',         green:'Situación laboral ordenada y documentada.' },
+  fiscal:       { red:'Obligaciones fiscales con riesgo de contingencia ante el SAT.',                       amber:'Áreas de mejora en cumplimiento fiscal y declaraciones.',              green:'Cumplimiento fiscal en buen estado.' },
+  contabilidad: { red:'Registros contables insuficientes que afectan la toma de decisiones y el SAT.',      amber:'Contabilidad básica pero con áreas de mejora importantes.',            green:'Contabilidad formal y estados financieros al corriente.' },
+  corporativo:  { red:'Contratos y estructura corporativa con exposición legal relevante.',                  amber:'Documentación corporativa requiere actualización.',                    green:'Estructura corporativa ordenada.' },
+  seguridad:    { red:'Incumplimientos NOM-035 y STPS detectados con riesgo de multas.',                    amber:'Algunas obligaciones de seguridad e higiene pendientes.',              green:'Seguridad e higiene bajo control.' },
+  datos:        { red:'Sin aviso de privacidad o gestión de datos personales inadecuada.',                   amber:'Aviso de privacidad o procesos de datos requieren actualización.',     green:'Manejo de datos personales adecuado.' },
+  comercio:     { red:'Operaciones de comercio exterior con irregularidades o riesgo aduanero.',             amber:'Documentación de comercio exterior con áreas de mejora.',             green:'Operaciones de comercio exterior ordenadas.' },
+  litigio:      { red:'Procesos legales activos, multas o documentos de procedencia dudosa sin atender.',   amber:'Algunos procedimientos o antecedentes requieren seguimiento.',         green:'Sin litigios o contingencias relevantes activas.' },
+};
+
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
+let currentSection = 0;
+let answers = {};
+const TOTAL = AREAS.length;
+
+// ══════════════════════════════════════════════════════════
+// START
+// ══════════════════════════════════════════════════════════
+function startDiagnostico() {
+  document.getElementById('hero-section').style.display = 'none';
+  document.getElementById('diagnostico-section').style.display = 'block';
+  buildProgressSteps();
+  buildSections();
+  showSection(0);
+}
+
+function buildProgressSteps() {
+  const el = document.getElementById('progressSteps');
+  el.innerHTML = AREAS.map((a,i) => `<div class="pstep" id="pstep_${i}">${a.label}</div>`).join('') +
+    `<div class="pstep" id="pstep_contact">Datos</div>`;
+}
+
+function buildSections() {
+  const container = document.getElementById('sectionsContainer');
+  container.innerHTML = '';
+  AREAS.forEach((area, ai) => {
+    const card = document.createElement('div');
+    card.className = 'section-card';
+    card.id = `section_${ai}`;
+
+    const qs = area.questions.map(q => {
+      const rClass = q.risk === 'high' ? 'rh' : q.risk === 'med' ? 'rm' : 'rl';
+      const rLabel = q.risk === 'high' ? 'Riesgo alto' : q.risk === 'med' ? 'Riesgo medio' : 'Riesgo bajo';
+      const opts = q.opts.map((o, i) => `
+        <div class="opt" id="opt_${q.id}_${i}" onclick="selectOpt('${q.id}',${i},${q.opts.length})">
+          <div class="opt-marker"></div>
+          <div class="opt-text">${o}</div>
+        </div>`).join('');
+      return `
+        <div class="question-block ${rClass}">
+          <div class="q-row">
+            <div class="q-risk-dot"></div>
+            <div class="q-label">${q.text}</div>
+          </div>
+          <div class="options">${opts}</div>
+        </div>`;
+    }).join('');
+
+    card.innerHTML = `
+      <div class="section-card-inner">
+        <div class="section-head">
+          <div class="section-number">// Área ${ai + 1} de ${TOTAL}</div>
+          <div class="section-title">${area.title}</div>
+          <div class="section-desc">${area.desc}</div>
+        </div>
+        <div class="section-body">${qs}</div>
+        <div class="section-foot">
+          <button class="btn btn-ghost" onclick="prevSection()" ${ai === 0 ? 'style="visibility:hidden"' : ''}>← Anterior</button>
+          <span class="nav-label">${ai + 1} / ${TOTAL}</span>
+          <button class="btn btn-primary" onclick="nextSection(${ai})">
+            ${ai === TOTAL - 1 ? 'Continuar →' : 'Siguiente →'}
+          </button>
+        </div>
+      </div>`;
+    container.appendChild(card);
+  });
+}
+
+function selectOpt(qId, idx, total) {
+  for(let i = 0; i < total; i++) {
+    document.getElementById(`opt_${qId}_${i}`)?.classList.remove('selected');
+  }
+  document.getElementById(`opt_${qId}_${idx}`)?.classList.add('selected');
+  answers[qId] = idx;
+}
+
+function showSection(idx) {
+  document.querySelectorAll('.section-card').forEach(c => c.classList.remove('visible'));
+  document.getElementById('contactSection').classList.remove('visible');
+  document.getElementById('resultsSection').classList.remove('visible');
+  currentSection = idx;
+  if(idx < TOTAL) {
+    document.getElementById(`section_${idx}`).classList.add('visible');
+  } else if(idx === TOTAL) {
+    document.getElementById('contactSection').classList.add('visible');
+  }
+  updateProgress(idx);
+  window.scrollTo({top: 80, behavior: 'smooth'});
+}
+
+function updateProgress(idx) {
+  const pct = Math.round((idx / TOTAL) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressCounter').textContent = `${Math.min(idx, TOTAL)} / ${TOTAL}`;
+  AREAS.forEach((_, i) => {
+    const s = document.getElementById(`pstep_${i}`);
+    if(!s) return;
+    s.classList.remove('active','done');
+    if(i < idx) s.classList.add('done');
+    else if(i === idx) s.classList.add('active');
+  });
+  const cs = document.getElementById('pstep_contact');
+  if(cs) { cs.classList.remove('active','done'); if(idx === TOTAL) cs.classList.add('active'); }
+}
+
+function nextSection(ai) {
+  const area = AREAS[ai];
+  const answered = area.questions.filter(q => answers[q.id] !== undefined).length;
+  const needed = Math.ceil(area.questions.length / 2);
+  if(answered < needed) {
+    let msg = document.querySelector(`#section_${ai} .val-msg`);
+    if(!msg) {
+      msg = document.createElement('p');
+      msg.className = 'val-msg';
+      document.querySelector(`#section_${ai} .section-foot`).before(msg);
+    }
+    msg.textContent = `⚠ Responda al menos ${needed} preguntas para continuar (${answered} de ${area.questions.length} respondidas).`;
+    return;
+  }
+  document.querySelector(`#section_${ai} .val-msg`)?.remove();
+  showSection(ai + 1);
+}
+
+function prevSection() {
+  if(currentSection > 0) showSection(currentSection - 1);
+}
+
+// ══════════════════════════════════════════════════════════
+// SCORE + RESULTS
+// ══════════════════════════════════════════════════════════
+function calcAreaResults() {
+  return AREAS.map(area => {
+    let total = 0, max = 0;
+    area.questions.forEach(q => {
+      const w = q.risk === 'high' ? 3 : q.risk === 'med' ? 2 : 1;
+      max += (q.opts.length - 1) * w;
+      if(answers[q.id] !== undefined) total += answers[q.id] * w;
+    });
+    const pct = max > 0 ? Math.round((total / max) * 100) : 0;
+    const level = pct >= 60 ? 'red' : pct >= 30 ? 'amber' : 'green';
+    const label = pct >= 60 ? 'Riesgo alto' : pct >= 30 ? 'Atención' : 'Bajo riesgo';
+    return { area, pct, level, label };
+  });
+}
+
+async function generateResults() {
+  const nombre   = document.getElementById('c_nombre').value.trim()   || 'Empresa';
+  const empresa  = document.getElementById('c_empresa').value.trim()  || '';
+  const telefono = document.getElementById('c_telefono').value.trim() || '';
+  const giro     = document.getElementById('c_giro').value.trim()     || '';
+  const empleados= document.getElementById('c_empleados').value.trim()|| '';
+  const referido = document.getElementById('c_referido').value.trim() || '';
+
+  const areaResults = calcAreaResults();
+  const globalPct = Math.round(areaResults.reduce((s,r) => s + r.pct, 0) / areaResults.length);
+  const globalLevel = globalPct >= 60 ? 'red' : globalPct >= 30 ? 'amber' : 'green';
+  const highCount = areaResults.filter(r => r.level === 'red').length;
+  const amberCount = areaResults.filter(r => r.level === 'amber').length;
+
+  // ── Global score card ──
+  let gsTitle, gsSub;
+  if(globalLevel === 'red') {
+    gsTitle = `${nombre}, su empresa requiere atención legal inmediata en varias áreas.`;
+    gsSub = `${highCount} área${highCount>1?'s':''} de riesgo alto · ${amberCount} de atención media`;
+  } else if(globalLevel === 'amber') {
+    gsTitle = `${nombre}, su empresa tiene una base razonable pero existen áreas de mejora.`;
+    gsSub = `${highCount} área${highCount>1?'s':''} de riesgo alto · ${amberCount} de atención media`;
+  } else {
+    gsTitle = `${nombre}, su empresa presenta un perfil de cumplimiento sólido.`;
+    gsSub = `Mayoría de áreas bajo control · Oportunidades de optimización identificadas`;
+  }
+  document.getElementById('gsTitle').textContent = gsTitle;
+  document.getElementById('gsSub').textContent   = gsSub;
+
+  // Ring animation
+  const ring = document.getElementById('gsRingFill');
+  const circumference = 251.2;
+  const offset = circumference - (globalPct / 100) * circumference;
+  ring.style.transition = 'stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1)';
+  const ringColor = globalLevel === 'red' ? '#c0392b' : globalLevel === 'amber' ? '#c87d10' : '#d4e030';
+  ring.style.stroke = ringColor;
+  setTimeout(() => { ring.style.strokeDashoffset = offset; }, 100);
+  document.getElementById('gsNum').textContent = globalPct + '%';
+  const levelEl = document.getElementById('gsLevel');
+  const levelLabels = { red:'Riesgo Alto', amber:'Atención Requerida', green:'Cumplimiento Sólido' };
+  levelEl.textContent = levelLabels[globalLevel];
+  levelEl.className = `gs-level gs-${globalLevel}`;
+
+  // ── Areas grid ──
+  const grid = document.getElementById('areasGrid');
+  grid.innerHTML = '';
+  areaResults.forEach(r => {
+    const f = FINDINGS[r.area.id];
+    const finding = f ? f[r.level] : '';
+    const div = document.createElement('div');
+    div.className = `area-card risk-${r.level}`;
+    div.innerHTML = `
+      <div class="area-card-head">
+        <div class="area-name">${r.area.title}</div>
+        <div class="area-badge">${r.label}</div>
+      </div>
+      <div class="area-pct">${r.pct}%</div>
+      <div class="area-bar-bg"><div class="area-bar-fill" style="width:0%" data-target="${r.pct}"></div></div>
+      <div class="area-finding">${finding}</div>`;
+    grid.appendChild(div);
+  });
+  setTimeout(() => {
+    document.querySelectorAll('.area-bar-fill').forEach(b => { b.style.width = b.dataset.target + '%'; });
+  }, 120);
+
+  // ── Summary ──
+  const summaryList = document.getElementById('summaryList');
+  summaryList.innerHTML = '';
+  const top = [...areaResults].sort((a,b) => b.pct - a.pct).slice(0, 4).filter(r => r.pct >= 20);
+  if(top.length === 0) {
+    const d = document.createElement('div');
+    d.className = 'summary-item';
+    d.innerHTML = '<div class="summary-dot"></div><div>Su empresa presenta un perfil de cumplimiento sólido. Nuestro equipo le orientará en las áreas de optimización.</div>';
+    summaryList.appendChild(d);
+  } else {
+    top.forEach(r => {
+      const f = FINDINGS[r.area.id];
+      const finding = f ? f[r.level] : '';
+      const d = document.createElement('div');
+      d.className = 'summary-item';
+      d.innerHTML = `<div class="summary-dot"></div><div><strong style="color:var(--ink)">${r.area.title}:</strong> ${finding}</div>`;
+      summaryList.appendChild(d);
+    });
+  }
+
+  // ── Show results ──
+  document.getElementById('contactSection').classList.remove('visible');
+  document.getElementById('resultsSection').classList.add('visible');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // ── Save to Supabase ──
+  const payload = {
+    nombre, empresa, telefono, giro, empleados, referido,
+    fecha: new Date().toISOString(),
+    score_global: globalPct,
+    nivel_global: globalLevel,
+    scores: Object.fromEntries(areaResults.map(r => [r.area.id, { pct: r.pct, nivel: r.level }])),
+    respuestas: answers,
+  };
+  const saved = await saveToSupabase(payload);
+  if(saved) showToast('✓ Diagnóstico registrado correctamente');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ══════════════════════════════════════════════════════════
+// PDF
+// ══════════════════════════════════════════════════════════
+function downloadPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'letter' });
+  const W = 215.9, M = 20;
+  let y = M;
+  const fecha = new Date().toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'});
+  const nombre   = document.getElementById('c_nombre').value   || 'Sin nombre';
+  const empresa  = document.getElementById('c_empresa').value  || 'Sin empresa';
+  const telefono = document.getElementById('c_telefono').value || '';
+  const giro     = document.getElementById('c_giro').value     || '';
+  const empleados= document.getElementById('c_empleados').value|| '';
+
+  function newPage() { doc.addPage(); y = M; }
+  function checkY(h=20) { if(y+h > 260) newPage(); }
+
+  // Header
+  doc.setFillColor(17,17,16);
+  doc.rect(0,0,W,36,'F');
+  doc.setFillColor(212,224,48);
+  doc.rect(0,35,W,1.5,'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  doc.setTextColor(212,224,48);
+  doc.text('AGUIRRE & CEBALLOS  |  Liridicum · Tributa · Consilium', M, 14);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(7);
+  doc.setTextColor(160,160,150);
+  doc.text('DIAGNÓSTICO LEGAL EMPRESARIAL — CONFIDENCIAL', M, 21);
+  doc.text(fecha, W-M, 21, {align:'right'});
+  y = 46;
+
+  // Title
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(20);
+  doc.setTextColor(17,17,16);
+  doc.text('Diagnóstico General de Cumplimiento', M, y);
+  y += 7;
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(11);
+  doc.setTextColor(100,100,90);
+  doc.text(empresa, M, y);
+  y += 12;
+
+  // Client info bar
+  doc.setFillColor(245,243,236);
+  doc.roundedRect(M, y, W-M*2, 24, 1, 1, 'F');
+  doc.setFontSize(7.5);
+  doc.setTextColor(120,120,110);
+  const cw = (W-M*2)/4;
+  ['RESPONSABLE','EMPRESA','TELÉFONO','EMPLEADOS'].forEach((lbl,i) => doc.text(lbl, M+6+cw*i, y+7));
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  doc.setTextColor(17,17,16);
+  [nombre,empresa,telefono,empleados].forEach((val,i) => doc.text(val||'—', M+6+cw*i, y+16));
+  y += 32;
+
+  // Global score
+  const areaResults = calcAreaResults();
+  const globalPct = Math.round(areaResults.reduce((s,r)=>s+r.pct,0)/areaResults.length);
+  const globalLevel = globalPct>=60?'red':globalPct>=30?'amber':'green';
+  const glColor = globalLevel==='red'?[192,57,43]:globalLevel==='amber'?[200,125,16]:[42,122,79];
+  const glLabel = globalLevel==='red'?'RIESGO ALTO':globalLevel==='amber'?'ATENCIÓN REQUERIDA':'CUMPLIMIENTO SÓLIDO';
+
+  doc.setFillColor(17,17,16);
+  doc.roundedRect(M, y, W-M*2, 28, 1, 1, 'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(8);
+  doc.setTextColor(212,224,48);
+  doc.text('DIAGNÓSTICO GENERAL DE CUMPLIMIENTO', M+8, y+8);
+  doc.setFontSize(18);
+  doc.setTextColor(245,243,236);
+  doc.text(globalPct + '%  de riesgo', M+8, y+20);
+  doc.setFillColor(...glColor);
+  doc.roundedRect(W-M-40, y+8, 38, 12, 1, 1, 'F');
+  doc.setFontSize(7);
+  doc.setTextColor(255,255,255);
+  doc.text(glLabel, W-M-21, y+16, {align:'center'});
+  y += 36;
+
+  // Area scores
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(11);
+  doc.setTextColor(17,17,16);
+  doc.text('Resultados por Área', M, y);
+  y += 2;
+  doc.setFillColor(212,224,48);
+  doc.rect(M, y, 28, 1.2, 'F');
+  y += 10;
+
+  areaResults.forEach(r => {
+    checkY(18);
+    const color = r.level==='red'?[192,57,43]:r.level==='amber'?[200,125,16]:[42,122,79];
+    const bg = r.level==='red'?[253,241,240]:r.level==='amber'?[253,246,236]:[240,250,245];
+    doc.setFillColor(...bg);
+    doc.roundedRect(M, y, W-M*2, 14, 1, 1, 'F');
+    doc.setFillColor(...color);
+    doc.roundedRect(M, y, 3, 14, 0.5, 0.5, 'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(17,17,16);
+    doc.text(r.area.title, M+7, y+6);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...color);
+    const fText = FINDINGS[r.area.id]?.[r.level] || '';
+    const fLines = doc.splitTextToSize(fText, W-M*2-70);
+    doc.text(fLines[0]||'', M+7, y+11);
+    // bar
+    const barX = W-M-52, barW2 = 40, barY = y+6;
+    doc.setFillColor(220,218,210);
+    doc.roundedRect(barX, barY, barW2, 3, 0.5, 0.5, 'F');
+    if(r.pct > 0) {
+      doc.setFillColor(...color);
+      doc.roundedRect(barX, barY, Math.max(barW2*(r.pct/100),1), 3, 0.5, 0.5, 'F');
+    }
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(10);
+    doc.setTextColor(17,17,16);
+    doc.text(r.pct+'%', W-M-2, y+9, {align:'right'});
+    y += 17;
+  });
+
+  y += 6;
+  checkY(50);
+
+  // Priority findings
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(11);
+  doc.setTextColor(17,17,16);
+  doc.text('Hallazgos Prioritarios', M, y);
+  y += 2;
+  doc.setFillColor(212,224,48);
+  doc.rect(M, y, 28, 1.2, 'F');
+  y += 10;
+  const top = [...areaResults].sort((a,b)=>b.pct-a.pct).slice(0,4).filter(r=>r.pct>=20);
+  top.forEach(r => {
+    checkY(14);
+    const f = FINDINGS[r.area.id]?.[r.level] || '';
+    doc.setFillColor(245,243,236);
+    doc.roundedRect(M, y, W-M*2, 12, 1, 1, 'F');
+    doc.setFillColor(212,224,48);
+    doc.circle(M+5, y+6, 1.5, 'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8);
+    doc.setTextColor(17,17,16);
+    doc.text(r.area.title+': ', M+10, y+7);
+    const tw = doc.getTextWidth(r.area.title+': ');
+    doc.setFont('helvetica','normal');
+    doc.setTextColor(80,80,74);
+    const lines = doc.splitTextToSize(f, W-M*2-14-tw);
+    doc.text(lines[0]||'', M+10+tw, y+7);
+    y += 14;
+  });
+
+  y += 8; checkY(34);
+  doc.setFillColor(17,17,16);
+  doc.roundedRect(M, y, W-M*2, 28, 1, 1, 'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(10);
+  doc.setTextColor(245,243,236);
+  doc.text('¿Qué sigue?', M+8, y+10);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.setTextColor(170,170,160);
+  doc.text('Nuestro equipo revisará su diagnóstico y le contactará en las próximas 24 horas hábiles.', M+8, y+18, {maxWidth: W-M*2-16});
+  doc.setTextColor(212,224,48);
+  doc.text('Aguirre & Ceballos  |  Monterrey, Nuevo León', M+8, y+25);
+  y += 36;
+
+  // Page footers
+  const pages = doc.getNumberOfPages();
+  for(let i=1;i<=pages;i++){
+    doc.setPage(i);
+    doc.setFillColor(240,240,237);
+    doc.rect(0,268,W,20,'F');
+    doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(140,140,130);
+    doc.text('Aguirre & Ceballos · Liridicum · Tributa · Consilium · Monterrey, N.L. · Información confidencial', M, 276);
+    doc.setTextColor(168,176,32);
+    doc.text(`Pág. ${i} / ${pages}`, W-M, 276, {align:'right'});
+  }
+
+  const fn = `AC_Diagnostico_${empresa.replace(/[^a-zA-Z0-9]/g,'_')}_${new Date().getFullYear()}.pdf`;
+  doc.save(fn);
+}
+</script>
+</body>
+</html>
