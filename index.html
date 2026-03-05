@@ -713,11 +713,14 @@ async function pageProyectos() {
 
 async function renderProyectos(filtroEstado='', filtroRiesgo='', search='', mes='') {
   const content = document.getElementById('page-content');
-  const [pRes, cRes] = await Promise.all([
+  const [pRes, cRes, pipRes] = await Promise.all([
     db.from('proyectos').select('*,clientes(nombre_empresa)').order('created_at',{ascending:false}),
-    db.from('clientes').select('id,nombre_empresa').eq('estatus','Activo').order('nombre_empresa')
+    db.from('clientes').select('id,nombre_empresa').eq('estatus','Activo').order('nombre_empresa'),
+    db.from('pipeline').select('proyecto_id,etapa,prospecto').not('proyecto_id','is',null).neq('etapa','Cerrado Ganado').neq('etapa','Cerrado Perdido'),
   ]);
   let pr = pRes.data||[];
+  const pipMap = {}; // proyecto_id -> pipeline record
+  (pipRes.data||[]).forEach(p=>{ if(p.proyecto_id) pipMap[p.proyecto_id]=p; });
   if (mes) pr = pr.filter(p=>enMes(p.fecha_inicio,mes)||enMes(p.fecha_limite,mes));
   if (filtroEstado) pr = pr.filter(p=>p.estado===filtroEstado);
   if (filtroRiesgo) pr = pr.filter(p=>p.riesgo===filtroRiesgo);
@@ -760,7 +763,10 @@ async function renderProyectos(filtroEstado='', filtroRiesgo='', search='', mes=
             const dias=p.fecha_limite?daysUntil(p.fecha_limite):null;
             const pct=p.horas_estimadas?Math.min(100,Math.round((p.horas_reales||0)/p.horas_estimadas*100)):0;
             return`<tr>
-              <td><strong>${p.nombre}</strong></td>
+              <td>
+                <strong>${p.nombre}</strong>
+                ${pipMap[p.id]?`<br><span style="font-size:11px;background:#f0fdf4;color:var(--green);border:1px solid #bbf7d0;border-radius:10px;padding:1px 7px;font-weight:600">🎯 En negociación: ${pipMap[p.id].prospecto}</span>`:''}
+              </td>
               <td>${p.clientes?.nombre_empresa||'—'}</td>
               <td><span class="badge badge-purple">${p.tipo||'—'}</span></td>
               <td>${p.incluido_iguala?'<span class="badge badge-gray">Iguala</span>':fmt(p.monto)}</td>
@@ -909,59 +915,117 @@ async function renderTareas(filtroEstado='', filtroResp='', search='', mes='') {
     meses.push(ym);
   }
 
+  const activas = ta.filter(t=>t.estado!=='Completada'&&t.estado!=='Cancelada');
+  const completadas = ta.filter(t=>t.estado==='Completada');
+  const vencidas = activas.filter(t=>t.fecha_limite&&daysUntil(t.fecha_limite)<0);
+
+  const columnas = [
+    {id:'Pendiente',   label:'Pendiente',    color:'var(--slate)', icon:'🕐'},
+    {id:'En curso',    label:'En curso',     color:'var(--blue)',  icon:'⚡'},
+    {id:'En revisión', label:'En revisión',  color:'var(--amber)', icon:'👁'},
+  ];
+
+  function tarjetaHTML(t, esCompletada=false) {
+    const dias = t.fecha_limite ? daysUntil(t.fecha_limite) : null;
+    const vencida = dias!==null && dias<0 && !esCompletada;
+    const urgente = !vencida && dias!==null && dias<=2;
+    const prioColors = {Crítica:'#dc2626',Alta:'#ea580c',Media:'#d97706',Baja:'#16a34a'};
+    const prioColor = prioColors[t.prioridad]||'#64748b';
+    return `<div style="background:white;border:1px solid ${vencida?'#fca5a5':urgente?'#fcd34d':'#e2e8f0'};border-left:3px solid ${vencida?'var(--red)':urgente?'var(--amber)':prioColor};border-radius:var(--r);padding:11px 12px;margin-bottom:8px;${esCompletada?'opacity:0.6;':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;margin-bottom:5px">
+        <span style="font-size:13px;font-weight:600;color:${esCompletada?'var(--slate2)':'var(--ink)'};${esCompletada?'text-decoration:line-through':''};line-height:1.3">${t.titulo}</span>
+        <span style="font-size:10px;font-weight:700;color:${prioColor};background:${prioColor}18;padding:2px 6px;border-radius:8px;white-space:nowrap;flex-shrink:0">${t.prioridad||'Media'}</span>
+      </div>
+      ${t.proyectos?.nombre?`<div style="font-size:11px;color:var(--slate2);margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📁 ${t.proyectos.nombre}${t.proyectos?.clientes?.nombre_empresa?' · '+t.proyectos.clientes.nombre_empresa:''}</div>`:''}
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:7px">
+        ${t.responsable?`<span style="font-size:10px;background:#f1f5f9;border-radius:8px;padding:2px 7px;color:var(--slate)">👤 ${t.responsable}</span>`:''}
+        ${t.area?`<span style="font-size:10px;background:var(--blue2);border-radius:8px;padding:2px 7px;color:var(--blue)">${t.area}</span>`:''}
+        ${t.facturable?`<span style="font-size:10px;background:#f0fdf4;border-radius:8px;padding:2px 7px;color:var(--green)">💵</span>`:''}
+        <span style="font-size:10px;font-weight:600;color:${vencida?'var(--red)':urgente?'var(--amber)':'var(--slate2)'};margin-left:auto">
+          ${t.fecha_limite?(vencida?`⚠️ ${Math.abs(dias)}d venc.`:dias===0?'📅 Hoy':urgente?`📅 ${dias}d`:`📅 ${fmtDate(t.fecha_limite)}`):''}
+        </span>
+      </div>
+      <div style="display:flex;gap:4px">
+        ${!esCompletada
+          ? `<button class="btn btn-gold btn-sm" style="flex:1;font-size:11px;padding:4px 8px" onclick="completarTarea('${t.id}','${mes}','${filtroResp}','${search}')">✓ Completar</button>
+             <button class="btn btn-outline btn-sm" style="padding:4px 7px" onclick="openTareaModal('${t.id}')">✏️</button>
+             ${t.fecha_limite?`<button class="btn btn-outline btn-sm" style="padding:4px 7px" onclick="addToGoogleCalendar('${t.titulo.replace(/'/g,"\\'")}','${t.fecha_limite}','${(t.responsable||'').replace(/'/g,"\\'")}')">📅</button>`:''}
+             <button class="btn btn-danger btn-sm" style="padding:4px 7px" onclick="deleteRecord('tareas','${t.id}',()=>renderTareas('${filtroResp}','${search}','${mes}'))">🗑</button>`
+          : `<button class="btn btn-outline btn-sm" style="font-size:11px;padding:4px 8px" onclick="reabrirTarea('${t.id}','${mes}','${filtroResp}','${search}')">↩ Reabrir</button>
+             <button class="btn btn-danger btn-sm" style="padding:4px 7px" onclick="deleteRecord('tareas','${t.id}',()=>renderTareas('${filtroResp}','${search}','${mes}'))">🗑</button>`}
+      </div>
+    </div>`;
+  }
+
   content.innerHTML = `
-    <div class="grid-4" style="margin-bottom:18px">
-      <div class="stat-card"><div class="stat-label">Total tareas</div><div class="stat-value">${ta.length}</div></div>
-      <div class="stat-card"><div class="stat-label">En curso</div><div class="stat-value" style="color:var(--blue)">${ta.filter(t=>t.estado==='En curso').length}</div></div>
-      <div class="stat-card"><div class="stat-label">Vencidas</div><div class="stat-value" style="color:var(--red)">${ta.filter(t=>t.fecha_limite&&daysUntil(t.fecha_limite)<0&&t.estado!=='Completada').length}</div></div>
-      <div class="stat-card"><div class="stat-label">Facturables pendientes</div><div class="stat-value" style="color:var(--amber)">${ta.filter(t=>t.facturable&&t.estado!=='Completada').length}</div></div>
+    <div class="grid-4" style="margin-bottom:16px">
+      <div class="stat-card"><div class="stat-label">Activas</div><div class="stat-value">${activas.length}</div></div>
+      <div class="stat-card"><div class="stat-label">En curso</div><div class="stat-value" style="color:var(--blue)">${activas.filter(t=>t.estado==='En curso').length}</div></div>
+      <div class="stat-card"><div class="stat-label">Vencidas</div><div class="stat-value" style="color:var(--red)">${vencidas.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Completadas</div><div class="stat-value" style="color:var(--green)">${completadas.length}</div></div>
     </div>
-    <div class="filters">
-      <select class="filter-select" onchange="renderTareas('${filtroEstado}','${filtroResp}','${search}',this.value)">
+    <div class="filters" style="margin-bottom:16px">
+      <select class="filter-select" onchange="renderTareas('${filtroResp}','${search}',this.value)">
         <option value="">Todos los meses</option>
         ${meses.map(m=>`<option value="${m}" ${mes===m?'selected':''}>${mesLabel(m)}</option>`).join('')}
       </select>
-      <input class="search-input" placeholder="🔍 Buscar tarea..." value="${search}" oninput="renderTareas('${filtroEstado}','${filtroResp}',this.value,'${mes}')">
-      <select class="filter-select" onchange="renderTareas(this.value,'${filtroResp}','${search}','${mes}')">
-        <option value="">Todos los estados</option>
-        ${['Pendiente','En curso','En revisión','Completada','Cancelada'].map(s=>`<option ${filtroEstado===s?'selected':''}>${s}</option>`).join('')}
-      </select>
-      ${currentUser.rol==='socio_director'?`<select class="filter-select" onchange="renderTareas('${filtroEstado}',this.value,'${search}','${mes}')">
+      <input class="search-input" placeholder="🔍 Buscar tarea..." value="${search}" oninput="renderTareas('${filtroResp}',this.value,'${mes}')">
+      ${currentUser.rol==='socio_director'?`<select class="filter-select" onchange="renderTareas(this.value,'${search}','${mes}')">
         <option value="">Todos los responsables</option>
         ${responsables.map(r=>`<option ${filtroResp===r?'selected':''}>${r}</option>`).join('')}
       </select>`:''}
     </div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Tarea</th><th>Proyecto / Cliente</th><th>Área</th><th>Responsable</th><th>Fecha límite</th><th>Prioridad</th><th>Horas</th><th>Facturable</th><th>Estado</th><th></th></tr></thead>
-        <tbody>
-          ${ta.length===0?`<tr><td colspan="10"><div class="empty"><div class="icon">✅</div><p>No hay tareas registradas</p></div></td></tr>`:''}
-          ${ta.map(t=>{
-            const dias=t.fecha_limite?daysUntil(t.fecha_limite):null;
-            return`<tr>
-              <td><strong>${t.titulo}</strong></td>
-              <td><span style="font-size:12px">${t.proyectos?.nombre||'—'}</span><br><span style="font-size:11px;color:var(--slate2)">${t.proyectos?.clientes?.nombre_empresa||''}</span></td>
-              <td><span class="badge badge-blue">${t.area||'—'}</span></td>
-              <td>${t.responsable||'—'}</td>
-              <td style="color:${dias===null?'inherit':dias<0?'var(--red)':dias<=2?'var(--amber)':'inherit'};font-weight:${dias!==null&&dias<=2?700:400}">
-                ${fmtDate(t.fecha_limite)}${dias!==null&&dias<0?' ⚠️':''}
-              </td>
-              <td>${badgeRiesgo(t.prioridad||'Media')}</td>
-              <td>
-                <span class="hora-badge" onclick="logHoras('tareas','${t.id}',${t.horas_reales||0})">⏱ ${t.horas_reales||0}h / ${t.horas_estimadas||0}h</span>
-              </td>
-              <td>${t.facturable?'<span class="badge badge-green">Sí</span>':'<span class="badge badge-gray">No</span>'}</td>
-              <td>${badgeEstatus(t.estado)}</td>
-              <td>
-                <button class="btn btn-outline btn-sm" onclick="openTareaModal('${t.id}')">✏️</button>
-                ${t.fecha_limite?`<button class="btn btn-outline btn-sm" title="Agregar a Google Calendar" onclick="addToGoogleCalendar('${t.titulo.replace(/'/g,"\\'")}','${t.fecha_limite}','Responsable: ${(t.responsable||'').replace(/'/g,"\\'")} · ${(t.proyectos?.nombre||'').replace(/'/g,"\\'")}')">📅</button>`:''}
-                <button class="btn btn-danger btn-sm" onclick="deleteRecord('tareas','${t.id}',renderTareas)">🗑</button>
-              </td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
+
+    <!-- KANBAN ACTIVAS -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px">
+      ${columnas.map(col=>{
+        const items = activas.filter(t=>t.estado===col.id);
+        return `<div style="background:#f8fafc;border-radius:var(--r);padding:12px;min-height:200px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <span style="font-size:13px;font-weight:700;color:${col.color}">${col.icon} ${col.label}</span>
+            <span style="background:${col.color}20;color:${col.color};border-radius:10px;padding:2px 9px;font-size:12px;font-weight:700">${items.length}</span>
+          </div>
+          ${items.length===0?`<div style="text-align:center;padding:24px 0;font-size:12px;color:var(--slate3)">Sin tareas</div>`:''}
+          ${items.map(t=>tarjetaHTML(t)).join('')}
+        </div>`;
+      }).join('')}
+    </div>
+
+    <!-- COMPLETADAS -->
+    <div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+      <div style="background:#f0fdf4;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleCompletadas()">
+        <span style="font-size:13px;font-weight:700;color:var(--green)">✅ Completadas (${completadas.length})</span>
+        <span id="completadas-arrow" style="color:var(--green);font-size:16px">▼</span>
+      </div>
+      <div id="completadas-section" style="padding:12px;display:none">
+        ${completadas.length===0
+          ? '<div style="text-align:center;padding:16px;font-size:12px;color:var(--slate3)">Sin tareas completadas</div>'
+          : `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">${completadas.map(t=>tarjetaHTML(t,true)).join('')}</div>`}
+      </div>
     </div>`;
+}
+
+async function completarTarea(id, mes='', filtroResp='', search='') {
+  const {error} = await db.from('tareas').update({estado:'Completada', updated_at: new Date().toISOString()}).eq('id',id);
+  if (error) { showToast('Error: '+error.message,'error'); return; }
+  showToast('✅ Tarea completada');
+  renderTareas(filtroResp, search, mes);
+}
+
+async function reabrirTarea(id, mes='', filtroResp='', search='') {
+  const {error} = await db.from('tareas').update({estado:'Pendiente', updated_at: new Date().toISOString()}).eq('id',id);
+  if (error) { showToast('Error: '+error.message,'error'); return; }
+  showToast('↩ Tarea reabierta');
+  renderTareas(filtroResp, search, mes);
+}
+
+function toggleCompletadas() {
+  const sec = document.getElementById('completadas-section');
+  const arrow = document.getElementById('completadas-arrow');
+  if (!sec) return;
+  const visible = sec.style.display !== 'none';
+  sec.style.display = visible ? 'none' : 'block';
+  if (arrow) arrow.textContent = visible ? '▼' : '▲';
 }
 
 async function openTareaModal(id=null) {
@@ -975,7 +1039,7 @@ async function openTareaModal(id=null) {
   const body = `
     <div class="form-row full"><div class="form-group"><label>Título de la tarea *</label><input id="f-titulo" value="${t.titulo||''}"/></div></div>
     <div class="form-row"><div class="form-group"><label>Proyecto</label><select id="f-proyecto"><option value="">— Sin proyecto —</option>${proyectos.map(p=>`<option value="${p.id}" ${t.proyecto_id===p.id?'selected':''}>${p.nombre} · ${p.clientes?.nombre_empresa||''}</option>`).join('')}</select></div>
-    <div class="form-group"><label>Área</label><select id="f-area">${['Fiscal','Legal','Contable','Corporativo','IMMEX','Litigio','Administrativo','Otro'].map(s=>`<option ${t.area===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
+    <div class="form-group"><label>Área</label><select id="f-area">${['Fiscal','Legal','Contable','Corporativo','IMMEX','Litigio','Auditoría','Administrativo','Marketing','Cobranza','Otro'].map(s=>`<option ${t.area===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
     <div class="form-row"><div class="form-group"><label>Responsable</label><select id="f-resp"><option value="">— Sin asignar —</option>${usuarios.map(u=>`<option value="${u.nombre}" ${t.responsable===u.nombre?'selected':''}>${u.nombre}</option>`).join('')}</select></div>
     <div class="form-group"><label>Fecha límite</label><input id="f-limite" type="date" value="${t.fecha_limite||''}"/></div></div>
     <div class="form-row"><div class="form-group"><label>Prioridad</label><select id="f-prio">${['Baja','Media','Alta','Crítica'].map(s=>`<option ${t.prioridad===s?'selected':''}>${s}</option>`).join('')}</select></div>
@@ -1042,10 +1106,13 @@ function logHoras(tabla, id, actual) {
 // GOOGLE CALENDAR
 // ============================================================
 function addToGoogleCalendar(titulo, fecha, descripcion) {
-  if (!fecha) return;
+  if (!fecha) { showToast('Esta tarea no tiene fecha límite','error'); return; }
   const start = fecha.replace(/-/g,'');
-  const end = fecha.replace(/-/g,'');
-  const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent('A&C: '+titulo)}&dates=${start}/${end}&details=${encodeURIComponent(descripcion)}&reminder=1440`;
+  // End date must be day after for all-day events
+  const endDate = new Date(fecha + 'T12:00:00');
+  endDate.setDate(endDate.getDate() + 1);
+  const end = endDate.toISOString().substring(0,10).replace(/-/g,'');
+  const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent('A&C: '+titulo)}&dates=${start}/${end}&details=${encodeURIComponent(descripcion||'')}`;
   window.open(url, '_blank');
 }
 
@@ -1486,21 +1553,40 @@ async function openPipelineModal(id=null) {
   const isEdit = !!id;
   let p = {};
   if (isEdit) { const {data} = await db.from('pipeline').select('*').eq('id',id).single(); p = data||{}; }
+  const [{data:clientes}, {data:proyectos}] = await Promise.all([
+    db.from('clientes').select('id,nombre_empresa').eq('estatus','Activo').order('nombre_empresa'),
+    db.from('proyectos').select('id,nombre,cliente_id,clientes(nombre_empresa)').order('nombre'),
+  ]);
+  const cl = clientes||[], pr = proyectos||[];
   const body = `
-    <div class="form-row full"><div class="form-group"><label>Nombre del prospecto *</label><input id="f-prosp" value="${p.prospecto||''}"/></div></div>
-    <div class="form-row"><div class="form-group"><label>Fuente</label><select id="f-fuente" onchange="toggleReferidor(this.value)">${['Referido','LinkedIn','Web','Evento','Llamada fría','Otro'].map(s=>`<option ${p.fuente===s?'selected':''}>${s}</option>`).join('')}</select></div>
-    <div class="form-group"><label>Servicio de interés</label>
+    <div class="form-row"><div class="form-group"><label>Nombre del prospecto *</label><input id="f-prosp" value="${p.prospecto||''}"/></div>
+    <div class="form-group"><label>Cliente existente <span style="font-size:11px;color:var(--slate2)">(opcional)</span></label>
+      <select id="f-cliente-pip" onchange="filtrarProyectosCliente(this.value)">
+        <option value="">— Prospecto nuevo —</option>
+        ${cl.map(c=>`<option value="${c.id}" ${p.cliente_id===c.id?'selected':''}>${c.nombre_empresa}</option>`).join('')}
+      </select>
+    </div></div>
+    <div class="form-row"><div class="form-group"><label>Proyecto vinculado <span style="font-size:11px;color:var(--slate2)">(opcional)</span></label>
+      <select id="f-proyecto-pip">
+        <option value="">— Sin proyecto vinculado —</option>
+        ${pr.map(r=>`<option value="${r.id}" data-cliente="${r.cliente_id||''}" ${p.proyecto_id===r.id?'selected':''}>${r.nombre} (${r.clientes?.nombre_empresa||'—'})</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group"><label>Fuente</label><select id="f-fuente" onchange="toggleReferidor(this.value)">${['Referido','LinkedIn','Web','Evento','Llamada fría','Otro'].map(s=>`<option ${p.fuente===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
+    <div class="form-row"><div class="form-group"><label>Servicio de interés</label>
     <div style="display:flex;flex-wrap:wrap;gap:10px;padding:10px 12px;background:var(--cream2);border-radius:var(--r-sm);border:1px solid var(--border)">
       ${['Legal','Contable','Auditoría','Otro'].map(s=>`
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:500">
           <input type="checkbox" name="f-serv" value="${s}" ${(p.servicio_interes||'').includes(s)?'checked':''} style="width:15px;height:15px;accent-color:var(--gold)"/> ${s}
         </label>`).join('')}
-    </div></div></div>
-    <div class="form-row"><div class="form-group"><label>Ticket estimado (MXN)</label><input id="f-ticket" type="number" value="${p.ticket_estimado||''}" oninput="updateComision(this.value)"/></div>
-    <div class="form-group"><label>Probabilidad (%)</label><input id="f-prob" type="number" min="0" max="100" value="${p.probabilidad||50}"/></div></div>
-    <div class="form-row"><div class="form-group"><label>Etapa</label><select id="f-etapa">${['Lead','Reunión','Propuesta','Negociación','Cerrado Ganado','Cerrado Perdido'].map(s=>`<option ${p.etapa===s?'selected':''}>${s}</option>`).join('')}</select></div>
-    <div class="form-group"><label>Fecha probable cierre</label><input id="f-cierre" type="date" value="${p.fecha_probable_cierre||''}"/></div></div>
-    <div class="form-row"><div class="form-group"><label>Responsable</label><input id="f-resp" value="${p.responsable||''}"/></div></div>
+    </div></div>
+    <div class="form-group" style="display:flex;flex-direction:column;justify-content:flex-end">
+      <label>Ticket estimado (MXN)</label><input id="f-ticket" type="number" value="${p.ticket_estimado||''}" oninput="updateComision(this.value)"/>
+    </div></div>
+    <div class="form-row"><div class="form-group"><label>Probabilidad (%)</label><input id="f-prob" type="number" min="0" max="100" value="${p.probabilidad||50}"/></div>
+    <div class="form-group"><label>Etapa</label><select id="f-etapa">${['Lead','Reunión','Propuesta','Negociación','Cerrado Ganado','Cerrado Perdido'].map(s=>`<option ${p.etapa===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
+    <div class="form-row"><div class="form-group"><label>Fecha probable cierre</label><input id="f-cierre" type="date" value="${p.fecha_probable_cierre||''}"/></div>
+    <div class="form-group"><label>Responsable</label><input id="f-resp" value="${p.responsable||''}"/></div></div>
     <div id="row-referidor" style="display:${p.fuente==='Referido'?'grid':'none'};grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px">
       <div class="form-group"><label>👤 Nombre del referidor</label><input id="f-referidor" value="${p.referidor||''}" placeholder="Quien lo refirió"/></div>
       <div class="form-group"><label>Comisión estimada 8%</label>
@@ -1513,6 +1599,8 @@ async function openPipelineModal(id=null) {
   openModal(isEdit?'Editar Prospecto':'Nuevo Prospecto', body, 'Guardar', async()=>{
     const payload = {
       prospecto: document.getElementById('f-prosp').value,
+      cliente_id: document.getElementById('f-cliente-pip').value||null,
+      proyecto_id: document.getElementById('f-proyecto-pip').value||null,
       fuente: document.getElementById('f-fuente').value,
       servicio_interes: [...document.querySelectorAll('input[name="f-serv"]:checked')].map(c=>c.value).join(', '),
       ticket_estimado: parseFloat(document.getElementById('f-ticket').value)||null,
@@ -1529,6 +1617,7 @@ async function openPipelineModal(id=null) {
     if (isEdit) { ({error:err} = await db.from('pipeline').update(payload).eq('id',id)); }
     else { ({error:err} = await db.from('pipeline').insert(payload)); }
     if (err) { showToast('Error: '+err.message,'error'); return; }
+    closeModal();
     // Debug
     console.log('COMISION DEBUG:', {etapa: payload.etapa, referidor: payload.referidor, ticket: payload.ticket_estimado});
     // Auto-registrar comisión
@@ -1538,7 +1627,7 @@ async function openPipelineModal(id=null) {
       if (!existe || existe.length === 0) {
         const comision = Math.round(payload.ticket_estimado * 0.08 * 100) / 100;
         console.log('INSERTANDO COMISION:', comision);
-        const {error: errCom, data: dataCom} = await db.from('cuentas_pagar').insert({
+        const {error: errCom} = await db.from('cuentas_pagar').insert({
           proveedor: payload.referidor,
           concepto: `Comisión 8% por referido: ${payload.prospecto}`,
           monto: comision,
@@ -1548,7 +1637,7 @@ async function openPipelineModal(id=null) {
           impacto_operativo: 'Bajo',
           fecha_vencimiento: new Date(Date.now()+15*86400000).toISOString().substring(0,10),
         });
-        console.log('INSERT RESULT:', {errCom, dataCom});
+        console.log('INSERT RESULT errCom:', errCom);
         if (!errCom) showToast(`💰 Comisión de ${fmt(comision)} registrada en Por Pagar para ${payload.referidor}`);
         else showToast('Error comisión: '+errCom.message,'error');
       } else {
@@ -1557,7 +1646,22 @@ async function openPipelineModal(id=null) {
     } else {
       showToast(isEdit?'Prospecto actualizado ✓':'Prospecto creado ✓');
     }
-    closeModal(); renderPipeline();
+    // Si se cierra Ganado con proyecto vinculado, preguntar qué hacer
+    if (payload.etapa==='Cerrado Ganado' && payload.proyecto_id) {
+      const {data: proy} = await db.from('proyectos').select('nombre,estado').eq('id', payload.proyecto_id).single();
+      if (proy && proy.estado !== 'En curso') {
+        openModal('🎯 Prospecto Cerrado Ganado', `
+          <p style="margin-bottom:16px">El prospecto está vinculado al proyecto <strong>${proy.nombre}</strong> (${proy.estado}).</p>
+          <p>¿Qué quieres hacer con el proyecto?</p>`, null, null, true);
+        // Reemplazar footer del modal con botones personalizados
+        document.getElementById('modal-save').style.display='none';
+        const footer = document.querySelector('.modal-footer') || document.getElementById('modal-save').parentElement;
+        footer.innerHTML = `
+          <button class="btn btn-outline" onclick="closeModal()">Dejarlo como está</button>
+          <button class="btn btn-gold" onclick="activarProyecto('${payload.proyecto_id}','${proy.nombre}')">✅ Cambiar a En curso</button>`;
+      }
+    }
+    renderPipeline();
   });
 }
 
@@ -2067,6 +2171,24 @@ async function exportFiscalExcel() {
   showToast('Excel fiscal descargado ✓');
 }
 
+
+function filtrarProyectosCliente(clienteId) {
+  const sel = document.getElementById('f-proyecto-pip');
+  if (!sel) return;
+  [...sel.options].forEach(opt => {
+    if (!opt.value) return;
+    opt.style.display = !clienteId || opt.dataset.cliente === clienteId ? '' : 'none';
+  });
+  sel.value = '';
+}
+
+async function activarProyecto(proyectoId, nombre) {
+  const {error} = await db.from('proyectos').update({estado:'En curso'}).eq('id', proyectoId);
+  closeModal();
+  if (!error) showToast(`✅ Proyecto "${nombre}" cambiado a En curso`);
+  else showToast('Error: '+error.message, 'error');
+  renderPipeline();
+}
 
 function toggleReferidor(fuente) {
   const row = document.getElementById('row-referidor');
