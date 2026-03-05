@@ -1488,7 +1488,7 @@ async function openPipelineModal(id=null) {
   const body = `
     <div class="form-row full"><div class="form-group"><label>Nombre del prospecto *</label><input id="f-prosp" value="${p.prospecto||''}"/></div></div>
     <div class="form-row"><div class="form-group"><label>Fuente</label><select id="f-fuente">${['Referido','LinkedIn','Web','Evento','Llamada fría','Otro'].map(s=>`<option ${p.fuente===s?'selected':''}>${s}</option>`).join('')}</select></div>
-    <div class="form-group"><label>Servicio de interés</label><input id="f-serv" value="${p.servicio_interes||''}"/></div></div>
+    <div class="form-group"><label>Servicio de interés</label><select id="f-serv">${['','Legal','Contable','Auditoría','Otro'].map(s=>`<option value="${s}" ${p.servicio_interes===s?'selected':''}>${s||'— Seleccionar —'}</option>`).join('')}</select></div></div>
     <div class="form-row"><div class="form-group"><label>Ticket estimado (MXN)</label><input id="f-ticket" type="number" value="${p.ticket_estimado||''}"/></div>
     <div class="form-group"><label>Probabilidad (%)</label><input id="f-prob" type="number" min="0" max="100" value="${p.probabilidad||50}"/></div></div>
     <div class="form-row"><div class="form-group"><label>Etapa</label><select id="f-etapa">${['Lead','Reunión','Propuesta','Negociación','Cerrado Ganado','Cerrado Perdido'].map(s=>`<option ${p.etapa===s?'selected':''}>${s}</option>`).join('')}</select></div>
