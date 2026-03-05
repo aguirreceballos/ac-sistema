@@ -1466,6 +1466,7 @@ async function renderPipeline(mes='') {
             <div onclick="openPipelineModal('${p.id}')">
               <h4>${p.prospecto}</h4>
               <p>${p.servicio_interes||'—'}</p>
+              ${p.referidor?`<p style="font-size:11px;color:var(--gold);font-weight:600">👤 Ref: ${p.referidor}</p>`:''}
               <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
                 <strong style="font-size:13px;color:var(--ink2)">${fmt(p.ticket_estimado)}</strong>
                 <span style="font-size:11px;background:var(--amber2);color:var(--amber);padding:2px 8px;border-radius:10px;font-weight:700">${p.probabilidad||0}%</span>
@@ -1487,7 +1488,7 @@ async function openPipelineModal(id=null) {
   if (isEdit) { const {data} = await db.from('pipeline').select('*').eq('id',id).single(); p = data||{}; }
   const body = `
     <div class="form-row full"><div class="form-group"><label>Nombre del prospecto *</label><input id="f-prosp" value="${p.prospecto||''}"/></div></div>
-    <div class="form-row"><div class="form-group"><label>Fuente</label><select id="f-fuente">${['Referido','LinkedIn','Web','Evento','Llamada fría','Otro'].map(s=>`<option ${p.fuente===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="form-row"><div class="form-group"><label>Fuente</label><select id="f-fuente" onchange="toggleReferidor(this.value)">${['Referido','LinkedIn','Web','Evento','Llamada fría','Otro'].map(s=>`<option ${p.fuente===s?'selected':''}>${s}</option>`).join('')}</select></div>
     <div class="form-group"><label>Servicio de interés</label>
     <div style="display:flex;flex-wrap:wrap;gap:10px;padding:10px 12px;background:var(--cream2);border-radius:var(--r-sm);border:1px solid var(--border)">
       ${['Legal','Contable','Auditoría','Otro'].map(s=>`
@@ -1495,11 +1496,19 @@ async function openPipelineModal(id=null) {
           <input type="checkbox" name="f-serv" value="${s}" ${(p.servicio_interes||'').includes(s)?'checked':''} style="width:15px;height:15px;accent-color:var(--gold)"/> ${s}
         </label>`).join('')}
     </div></div></div>
-    <div class="form-row"><div class="form-group"><label>Ticket estimado (MXN)</label><input id="f-ticket" type="number" value="${p.ticket_estimado||''}"/></div>
+    <div class="form-row"><div class="form-group"><label>Ticket estimado (MXN)</label><input id="f-ticket" type="number" value="${p.ticket_estimado||''}" oninput="updateComision(this.value)"/></div>
     <div class="form-group"><label>Probabilidad (%)</label><input id="f-prob" type="number" min="0" max="100" value="${p.probabilidad||50}"/></div></div>
     <div class="form-row"><div class="form-group"><label>Etapa</label><select id="f-etapa">${['Lead','Reunión','Propuesta','Negociación','Cerrado Ganado','Cerrado Perdido'].map(s=>`<option ${p.etapa===s?'selected':''}>${s}</option>`).join('')}</select></div>
     <div class="form-group"><label>Fecha probable cierre</label><input id="f-cierre" type="date" value="${p.fecha_probable_cierre||''}"/></div></div>
     <div class="form-row"><div class="form-group"><label>Responsable</label><input id="f-resp" value="${p.responsable||''}"/></div></div>
+    <div id="row-referidor" style="display:${p.fuente==='Referido'?'grid':'none'};grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px">
+      <div class="form-group"><label>👤 Nombre del referidor</label><input id="f-referidor" value="${p.referidor||''}" placeholder="Quien lo refirió"/></div>
+      <div class="form-group"><label>Comisión estimada 8%</label>
+        <div id="comision-preview" style="padding:10px 12px;background:#fdf6e3;border:1px solid #fbd38d;border-radius:var(--r-sm);font-size:13px;font-weight:600;color:#b7791f">
+          ${p.ticket_estimado&&p.fuente==='Referido'?fmt(p.ticket_estimado*0.08)+' MXN':'Ingresa ticket estimado'}
+        </div>
+      </div>
+    </div>
     <div class="form-row full"><div class="form-group"><label>Notas</label><textarea id="f-notas">${p.notas||''}</textarea></div></div>`;
   openModal(isEdit?'Editar Prospecto':'Nuevo Prospecto', body, 'Guardar', async()=>{
     const payload = {
@@ -1511,15 +1520,34 @@ async function openPipelineModal(id=null) {
       etapa: document.getElementById('f-etapa').value,
       fecha_probable_cierre: document.getElementById('f-cierre').value||null,
       responsable: document.getElementById('f-resp').value,
+      referidor: document.getElementById('f-referidor')?.value||null,
       notas: document.getElementById('f-notas').value,
       updated_at: new Date().toISOString(),
     };
     if (!payload.prospecto) { showToast('El nombre es obligatorio','error'); return; }
+    // Detectar si acaba de cerrarse como Ganado con referidor para generar comisión
+    const etapaAnterior = isEdit ? p.etapa : null;
     let err;
     if (isEdit) { ({error:err} = await db.from('pipeline').update(payload).eq('id',id)); }
     else { ({error:err} = await db.from('pipeline').insert(payload)); }
     if (err) { showToast('Error: '+err.message,'error'); return; }
-    closeModal(); showToast(isEdit?'Prospecto actualizado':'Prospecto creado'); renderPipeline();
+    // Auto-registrar comisión si se cierra como Ganado con referidor
+    if (payload.etapa==='Cerrado Ganado' && payload.referidor && etapaAnterior!=='Cerrado Ganado' && payload.ticket_estimado) {
+      const comision = payload.ticket_estimado * 0.08;
+      await db.from('cuentas_pagar').insert({
+        proveedor: payload.referidor,
+        concepto: `Comisión 8% por referido: ${payload.prospecto}`,
+        monto: comision,
+        estatus: 'Pendiente',
+        prioridad: 'Media',
+        metodo_pago: 'Transferencia',
+        impacto_operativo: 'Bajo',
+      });
+      showToast(`✓ Prospecto cerrado · Comisión de ${fmt(comision)} registrada para ${payload.referidor}`);
+    } else {
+      showToast(isEdit?'Prospecto actualizado':'Prospecto creado');
+    }
+    closeModal(); renderPipeline();
   });
 }
 
@@ -2029,6 +2057,19 @@ async function exportFiscalExcel() {
   showToast('Excel fiscal descargado ✓');
 }
 
+
+function toggleReferidor(fuente) {
+  const row = document.getElementById('row-referidor');
+  if (row) row.style.display = fuente==='Referido' ? 'grid' : 'none';
+  updateComision(document.getElementById('f-ticket')?.value||0);
+}
+
+function updateComision(ticket) {
+  const prev = document.getElementById('comision-preview');
+  if (!prev) return;
+  const t = parseFloat(ticket)||0;
+  prev.textContent = t>0 ? fmt(t*0.08)+' MXN' : 'Ingresa ticket estimado';
+}
 
 function toggleIVADetalle() {
   const el = document.getElementById('iva-detalle');
