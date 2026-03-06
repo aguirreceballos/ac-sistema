@@ -1494,6 +1494,53 @@ async function pagePipeline() {
   await renderPipeline();
 }
 
+async function quickCerrarPipeline(id, nuevaEtapa) {
+  const confirm = await new Promise(res => {
+    const label = nuevaEtapa === 'Cerrado Ganado' ? '¿Marcar como Cerrado Ganado?' : '¿Marcar como Cerrado Perdido?';
+    const color = nuevaEtapa === 'Cerrado Ganado' ? 'var(--green)' : 'var(--red)';
+    openModal(nuevaEtapa,
+      `<p style="margin-bottom:16px;font-size:15px">${label}</p>`,
+      'Confirmar', () => res(true), false);
+    document.getElementById('modal-save').style.background = color;
+    const cancelBtn = document.querySelector('.modal-footer .btn-outline');
+    if (cancelBtn) cancelBtn.addEventListener('click', () => res(false));
+  });
+  if (!confirm) return;
+  closeModal();
+  // Fetch current record to preserve all fields
+  const {data: p, error: fetchErr} = await db.from('pipeline').select('*').eq('id', id).single();
+  if (fetchErr || !p) { showToast('Error al obtener el prospecto', 'error'); return; }
+  const payload = { etapa: nuevaEtapa, updated_at: new Date().toISOString() };
+  const {error: err} = await db.from('pipeline').update(payload).eq('id', id);
+  if (err) { showToast('Error: ' + err.message, 'error'); return; }
+  // Auto-registrar comisión si aplica
+  if (nuevaEtapa === 'Cerrado Ganado' && p.referidor && p.ticket_estimado) {
+    const {data: existe} = await db.from('cuentas_pagar').select('id').ilike('concepto', `%${p.prospecto}%`).ilike('proveedor', `%${p.referidor}%`);
+    if (!existe || existe.length === 0) {
+      const comision = Math.round(p.ticket_estimado * 0.08 * 100) / 100;
+      const {error: errCom} = await db.from('cuentas_pagar').insert({
+        proveedor: p.referidor,
+        concepto: `Comisión 8% por referido: ${p.prospecto}`,
+        monto: comision,
+        estatus: 'Pendiente',
+        prioridad: 'Media',
+        metodo_pago: 'Transferencia',
+        impacto_operativo: 'Bajo',
+        fecha_vencimiento: new Date(Date.now() + 15 * 86400000).toISOString().substring(0, 10),
+      });
+      if (!errCom) showToast(`✅ Ganado · 💰 Comisión ${fmt(comision)} registrada para ${p.referidor}`);
+      else showToast('Cerrado Ganado ✓ (error en comisión)', 'error');
+    } else {
+      showToast('✅ Cerrado Ganado · comisión ya existía');
+    }
+  } else if (nuevaEtapa === 'Cerrado Ganado') {
+    showToast('✅ ¡Cerrado Ganado!');
+  } else {
+    showToast('❌ Marcado como Cerrado Perdido');
+  }
+  renderPipeline();
+}
+
 async function renderPipeline(mes='') {
   const content = document.getElementById('page-content');
   const {data} = await db.from('pipeline').select('*').order('created_at',{ascending:false});
@@ -1539,9 +1586,13 @@ async function renderPipeline(mes='') {
                 <span style="font-size:11px;background:var(--amber2);color:var(--amber);padding:2px 8px;border-radius:10px;font-weight:700">${p.probabilidad||0}%</span>
               </div>
             </div>
-            <div style="margin-top:8px;display:flex;gap:6px">
-              <button class="btn btn-outline btn-sm" style="flex:1;font-size:11px" onclick="openPipelineModal('${p.id}')">✏️ Editar</button>
-              <button class="btn btn-danger btn-sm" style="font-size:11px" onclick="deleteRecord('pipeline','${p.id}',renderPipeline)">🗑</button>
+            <div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap">
+              ${!['Cerrado Ganado','Cerrado Perdido'].includes(p.etapa)?`
+              <button style="flex:1;font-size:11px;padding:4px 6px;border-radius:6px;border:none;background:#d4e030;color:#111;font-weight:700;cursor:pointer" onclick="quickCerrarPipeline('${p.id}','Cerrado Ganado')">✅ Ganado</button>
+              <button style="flex:1;font-size:11px;padding:4px 6px;border-radius:6px;border:none;background:#fee2e2;color:#dc2626;font-weight:700;cursor:pointer" onclick="quickCerrarPipeline('${p.id}','Cerrado Perdido')">❌ Perdido</button>
+              `:''}
+              <button class="btn btn-outline btn-sm" style="font-size:11px;padding:4px 7px" onclick="openPipelineModal('${p.id}')">✏️</button>
+              <button class="btn btn-danger btn-sm" style="font-size:11px;padding:4px 7px" onclick="deleteRecord('pipeline','${p.id}',renderPipeline)">🗑</button>
             </div>
           </div>`).join('')}
         </div>`;
