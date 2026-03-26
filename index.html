@@ -469,15 +469,19 @@ async function pageDashboard() {
     return da-db2;
   }).slice(0,5);
 
-  // Cierre mensual — mes actual
-  const ingMes = co.filter(r=>r.estatus==='Pagada'&&enMes(r.fecha_emision,mes)).reduce((s,r)=>s+Number(r.monto||0)/1.16,0);
-  const gastMes = pa.filter(r=>r.estatus==='Pagada'&&enMes(r.fecha_vencimiento,mes)).reduce((s,r)=>s+Number(r.monto||0),0);
-  const ivaMes = co.filter(r=>r.estatus==='Pagada'&&enMes(r.fecha_emision,mes)).reduce((s,r)=>s+(Number(r.monto||0)-Number(r.monto||0)/1.16),0);
+  // Cierre mensual — mes actual (por fecha de PAGO real)
+  const ingMes = co.filter(r=>r.estatus==='Pagada'&&enMes(r.fecha_pago||r.fecha_emision,mes)).reduce((s,r)=>s+Number(r.monto||0)/1.16,0);
+  const gastMes = pa.filter(r=>r.estatus==='Pagada'&&enMes(r.fecha_pago||r.fecha_vencimiento,mes)).reduce((s,r)=>s+Number(r.monto||0),0);
+  const ivaMes = co.filter(r=>r.estatus==='Pagada'&&enMes(r.fecha_pago||r.fecha_emision,mes)).reduce((s,r)=>s+(Number(r.monto||0)-Number(r.monto||0)/1.16),0);
   const utilMes = ingMes - gastMes;
+  // Saldo acumulado hasta el mes seleccionado (flujo histórico)
+  const ingAcum = co.filter(r=>r.estatus==='Pagada'&&(r.fecha_pago||r.fecha_emision)<=mes+'-31').reduce((s,r)=>s+Number(r.monto||0)/1.16,0);
+  const gastAcum = pa.filter(r=>r.estatus==='Pagada'&&(r.fecha_pago||r.fecha_vencimiento)<=mes+'-31').reduce((s,r)=>s+Number(r.monto||0),0);
+  const saldoAcum = ingAcum - gastAcum;
 
-  // Cierre mensual — mes anterior
-  const ingAnt = co.filter(r=>r.estatus==='Pagada'&&enMes(r.fecha_emision,mesAnt)).reduce((s,r)=>s+Number(r.monto||0)/1.16,0);
-  const gastAnt = pa.filter(r=>r.estatus==='Pagada'&&enMes(r.fecha_vencimiento,mesAnt)).reduce((s,r)=>s+Number(r.monto||0),0);
+  // Cierre mensual — mes anterior (por fecha de PAGO real)
+  const ingAnt = co.filter(r=>r.estatus==='Pagada'&&enMes(r.fecha_pago||r.fecha_emision,mesAnt)).reduce((s,r)=>s+Number(r.monto||0)/1.16,0);
+  const gastAnt = pa.filter(r=>r.estatus==='Pagada'&&enMes(r.fecha_pago||r.fecha_vencimiento,mesAnt)).reduce((s,r)=>s+Number(r.monto||0),0);
   const utilAnt = ingAnt - gastAnt;
   const varUtil = utilAnt>0 ? Math.round((utilMes-utilAnt)/utilAnt*100) : 0;
 
@@ -511,6 +515,7 @@ async function pageDashboard() {
             <div style="font-size:11px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Utilidad</div>
             <div style="font-size:22px;font-weight:700;color:${utilMes>=0?'var(--gold)':'var(--red)'};font-family:'Playfair Display',serif">${fmt(utilMes)}</div>
             <div style="font-size:11px;color:${varUtil>=0?'var(--green)':'var(--red)'};margin-top:3px;font-weight:600">${varUtil>=0?'▲':'▼'} ${Math.abs(varUtil)}% vs mes ant.</div>
+            <div style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border);font-size:10px;color:var(--slate2)">Acumulado: <strong style="color:${saldoAcum>=0?'var(--green)':'var(--red)'}">${fmt(saldoAcum)}</strong></div>
           </div>
           <div style="text-align:center;padding:12px">
             <div style="font-size:11px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">IVA trasladado</div>
@@ -1218,6 +1223,11 @@ async function renderFinanzas(tab='balance', mes='') {
   const ivaTrasladadoCobrado = ingresosBrutos - ingresosNetos;
   const gastosPagados = pa.filter(r=>r.estatus==='Pagada').reduce((s,r)=>s+Number(r.monto||0),0);
   const utilidad = ingresosNetos - gastosPagados;
+  // Saldo acumulado hasta el mes seleccionado (usando todos los datos, no solo los filtrados por mes)
+  const saldoAcumFin = coTodos.filter(r=>r.estatus==='Pagada'&&(r.fecha_pago||r.fecha_emision)<=mes+'-31')
+    .reduce((s,r)=>s+Number(r.monto||0)/1.16,0)
+    - paTodos.filter(r=>r.estatus==='Pagada'&&(r.fecha_pago||r.fecha_vencimiento)<=mes+'-31')
+    .reduce((s,r)=>s+Number(r.monto||0),0);
   
   // Efectivo vs Transferencia
   const cobradoEfectivo = cobradas.filter(r=>r.metodo_pago==='Efectivo').reduce((s,r)=>s+Number(r.monto||0),0);
@@ -1259,6 +1269,7 @@ async function renderFinanzas(tab='balance', mes='') {
         <div class="stat-label">Utilidad del período</div>
         <div class="stat-value" style="color:${utilidad>=0?'var(--gold)':'var(--red)'};font-size:20px">${fmt(utilidad)}</div>
         <div class="stat-sub">${utilidad>=0?'✅ Positivo':'⚠️ Negativo'} · Ingresos − Gastos</div>
+        <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:11px;color:var(--slate2)">Saldo acumulado: <strong style="color:${saldoAcumFin>=0?'var(--green)':'var(--red)'}">${fmt(saldoAcumFin)}</strong></div>
       </div>
       <div class="stat-card" style="border-top:3px solid var(--amber);cursor:pointer" onclick="toggleIVADetalle()" title="Ver detalle IVA">
         <div class="stat-label">IVA trasladado (SAT) <span style="font-size:10px;color:var(--amber)">▶ detalle</span></div>
